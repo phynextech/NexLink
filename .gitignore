@@ -1,0 +1,13 @@
+# NexLink Root .gitignore
+node_modules/
+*.user
+*.suo
+.vs/
+bin/
+obj/
+*.log
+.env
+local.properties
+*.keystore
+google-services.json
+GoogleService-Info.plist

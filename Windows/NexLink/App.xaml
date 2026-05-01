@@ -1,0 +1,144 @@
+<Application x:Class="NexLink.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:helpers="clr-namespace:NexLink.Helpers"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Value Converters -->
+        <helpers:BoolToAlignmentConverter     x:Key="BoolToAlignment"/>
+        <helpers:BoolToColorConverter         x:Key="BoolToColor"/>
+        <helpers:NonZeroToVisibilityConverter x:Key="NonZeroVisibility"/>
+        <helpers:BoolToVisibilityConverter    x:Key="BoolToVisibility"/>
+        <!-- Color Palette (NexLink Cyber-Premium) -->
+        <SolidColorBrush x:Key="BackgroundDark"     Color="#0A0E1A"/>
+        <SolidColorBrush x:Key="BackgroundCard"     Color="#12182B"/>
+        <SolidColorBrush x:Key="BackgroundElevated" Color="#1A2238"/>
+        <SolidColorBrush x:Key="SurfaceVariant"     Color="#232D4A"/>
+        <SolidColorBrush x:Key="BluePrimary"        Color="#00E5FF"/>
+        <SolidColorBrush x:Key="BlueLight"          Color="#80F2FF"/>
+        <SolidColorBrush x:Key="BlueAccent"         Color="#00B8D4"/>
+        <SolidColorBrush x:Key="GreenConnected"     Color="#00E676"/>
+        <SolidColorBrush x:Key="RedDisconnected"    Color="#FF1744"/>
+        <SolidColorBrush x:Key="OrangeWarning"      Color="#FF9100"/>
+        <SolidColorBrush x:Key="TextPrimary"        Color="#F5F9FF"/>
+        <SolidColorBrush x:Key="TextSecondary"      Color="#A0ABC0"/>
+        <SolidColorBrush x:Key="TextMuted"          Color="#6B7A99"/>
+        <SolidColorBrush x:Key="BorderSubtle"       Color="#252F4A"/>
+        <SolidColorBrush x:Key="BorderDefault"      Color="#334166"/>
+
+        <!-- Global TextBlock style -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Nunito, Segoe UI"/>
+        </Style>
+
+        <!-- Global Button style -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BluePrimary}"/>
+            <Setter Property="Foreground" Value="{StaticResource BackgroundDark}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#80F2FF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#00B8D4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#21262D"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Card style -->
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource BackgroundCard}"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- ScrollViewer style -->
+        <Style TargetType="ScrollViewer">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <!-- ListBox style -->
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        </Style>
+
+        <!-- Tab control style -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" BorderThickness="0,0,0,2"
+                                BorderBrush="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="Content"
+                                              ContentSource="Header"
+                                              HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource BluePrimary}"/>
+                                <Setter TargetName="Content" Property="TextBlock.Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Content" Property="TextBlock.Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>

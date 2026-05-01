@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "error-container": "#93000a",
+                "secondary-fixed-dim": "#cdbdff",
+                "on-secondary-fixed-variant": "#4f00d0",
+                "on-tertiary-fixed": "#171b28",
+                "on-primary-container": "#00626e",
+                "on-surface": "#d9e3f7",
+                "surface-container-low": "#121c2a",
+                "outline": "#849396",
+                "error": "#ffb4ab",
+                "outline-variant": "#3b494c",
+                "tertiary-fixed-dim": "#c3c6d7",
+                "on-surface-variant": "#bac9cc",
+                "tertiary": "#eaecfe",
+                "surface": "#091421",
+                "surface-container": "#16202e",
+                "secondary": "#cdbdff",
+                "surface-container-highest": "#2b3544",
+                "inverse-primary": "#006875",
+                "primary": "#c3f5ff",
+                "on-background": "#d9e3f7",
+                "on-primary": "#00363d",
+                "secondary-fixed": "#e8deff",
+                "tertiary-container": "#cdd0e1",
+                "surface-tint": "#00daf3",
+                "primary-fixed-dim": "#00daf3",
+                "on-error-container": "#ffdad6",
+                "on-tertiary": "#2c303d",
+                "inverse-surface": "#d9e3f7",
+                "on-secondary-fixed": "#20005f",
+                "on-primary-fixed": "#001f24",
+                "on-secondary": "#370096",
+                "primary-container": "#00e5ff",
+                "primary-fixed": "#9cf0ff",
+                "on-secondary-container": "#c0acff",
+                "on-error": "#690005",
+                "inverse-on-surface": "#273140",
+                "on-tertiary-fixed-variant": "#434654",
+                "surface-container-lowest": "#050f1c",
+                "on-primary-fixed-variant": "#004f58",
+                "surface-bright": "#303a49",
+                "secondary-container": "#5203d5",
+                "surface-container-high": "#212a39",
+                "surface-dim": "#091421",
+                "on-tertiary-container": "#555967",
+                "background": "#091421",
+                "surface-variant": "#2b3544",
+                "tertiary-fixed": "#dfe2f3"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "base": "8px",
+                "xl": "64px",
+                "gutter": "16px",
+                "xs": "4px",
+                "sm": "12px",
+                "margin-safe": "24px",
+                "lg": "40px",
+                "md": "24px"
+            },
+            "fontFamily": {
+                "body-md": ["Plus Jakarta Sans"],
+                "h2": ["Space Grotesk"],
+                "code-data": ["Space Grotesk"],
+                "label-sm": ["Plus Jakarta Sans"],
+                "h1": ["Space Grotesk"],
+                "body-lg": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                "h2": ["24px", {"lineHeight": "1.3", "fontWeight": "700"}],
+                "code-data": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                "label-sm": ["12px", {"lineHeight": "1", "fontWeight": "600"}],
+                "h1": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(9, 20, 33, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .neon-glow {
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+        }
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #00e5ff 0%, #cdbdff 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md min-h-screen pb-32">
+<!-- Top App Bar -->
+<header class="bg-slate-950/60 backdrop-blur-xl border-b border-white/10 flex justify-between items-center w-full px-6 py-4 sticky top-0 z-40">
+<div class="flex items-center gap-4">
+<button class="text-slate-400 hover:text-cyan-400 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-h2 text-body-lg font-bold tracking-tight text-cyan-400 drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]">Remote Apps</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-slate-400 hover:text-cyan-400 transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-cyan-400/30">
+<img alt="User Profile" data-alt="close-up portrait of a digital avatar with neon blue highlights on dark background, futuristic clean aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCldxcagkgOPoTeCqKXQQ-eWisodAZvAeu_YL-6DKVUyINJg1SSO5BCSfTvnKN5qVBQBS1dCAh4LDTF7eJ_XNyBxfMJAUd-64FP8GB_Oq36lr69-1txpbH6erO4uv182nrWUx7oTetbQ6gpyUtcKWkAtV1rILQaBx0HgW-a3L-84R7UlOc8XE-s9mv3nqIPpX2Rt2BvaYeAnuyiOPO9ApnRuajNrjga-2a-3j1vx30y0awfWrGpynTWIWFNFTU3Nu4qw_QH7J4PyFOr"/>
+</div>
+</div>
+</header>
+<main class="px-margin-safe pt-6 space-y-8">
+<!-- Search Bar -->
+<section>
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors">search</span>
+<input class="w-full bg-surface-container-lowest border-b border-white/10 py-4 pl-12 pr-4 focus:outline-none focus:border-cyan-400 text-body-md transition-all" placeholder="Search apps..." type="text"/>
+<div class="absolute bottom-0 left-0 h-[1px] w-0 bg-cyan-400 transition-all duration-300 group-focus-within:w-full neon-glow"></div>
+</div>
+</section>
+<!-- Pinned Apps Section -->
+<section class="space-y-4">
+<div class="flex justify-between items-center">
+<h2 class="font-h2 text-on-surface-variant tracking-wide uppercase text-label-sm">Pinned Apps</h2>
+<span class="text-label-sm text-cyan-400/60">4 Active</span>
+</div>
+<div class="grid grid-cols-2 gap-gutter">
+<!-- App Card 1 -->
+<div class="glass-card rounded-[20px] p-4 h-[100px] flex flex-col justify-between relative overflow-hidden group hover:border-cyan-400/40 transition-all active:scale-95">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[32px] text-cyan-400">terminal</span>
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+</div>
+<p class="font-code-data text-white">Visual Studio</p>
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">terminal</span>
+</div>
+</div>
+<!-- App Card 2 -->
+<div class="glass-card rounded-[20px] p-4 h-[100px] flex flex-col justify-between relative overflow-hidden group hover:border-cyan-400/40 transition-all active:scale-95">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[32px] text-cyan-400">admob</span>
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+</div>
+<p class="font-code-data text-white">Photoshop</p>
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">palette</span>
+</div>
+</div>
+<!-- App Card 3 -->
+<div class="glass-card rounded-[20px] p-4 h-[100px] flex flex-col justify-between relative overflow-hidden group hover:border-cyan-400/40 transition-all active:scale-95">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[32px] text-cyan-400">folder_zip</span>
+<div class="w-2 h-2 rounded-full bg-slate-600"></div>
+</div>
+<p class="font-code-data text-white">Assets Explorer</p>
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">folder_open</span>
+</div>
+</div>
+<!-- App Card 4 -->
+<div class="glass-card rounded-[20px] p-4 h-[100px] flex flex-col justify-between relative overflow-hidden group hover:border-cyan-400/40 transition-all active:scale-95">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-[32px] text-cyan-400">database</span>
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+</div>
+<p class="font-code-data text-white">Data Master</p>
+<div class="absolute -right-4 -bottom-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl">storage</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Add More Section -->
+<section class="flex items-center justify-between glass-card p-6 rounded-3xl border-dashed border-white/20">
+<div>
+<h3 class="font-h2 text-body-lg text-white">Add More</h3>
+<p class="text-label-sm text-slate-400">Extend your workspace</p>
+</div>
+<button class="w-12 h-12 rounded-full bg-cyan-400/10 border border-cyan-400 flex items-center justify-center text-cyan-400 hover:bg-cyan-400 hover:text-primary transition-all active:scale-90 neon-glow">
+<span class="material-symbols-outlined">add</span>
+</button>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-slate-950/40 backdrop-blur-2xl rounded-t-3xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 hover:bg-white/5 transition-all active:scale-90 duration-150 ease-out">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase">Home</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 hover:bg-white/5 transition-all active:scale-90 duration-150 ease-out">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase">Files</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 hover:bg-white/5 transition-all active:scale-90 duration-150 ease-out">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase">Media</span>
+</div>
+<div class="flex flex-col items-center justify-center text-cyan-400 drop-shadow-[0_0_10px_rgba(0,229,255,0.5)] bg-cyan-400/10 rounded-2xl px-4 py-2 hover:bg-white/5 transition-all active:scale-90 duration-150 ease-out">
+<span class="material-symbols-outlined">apps</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase">Apps</span>
+</div>
+<div class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 hover:bg-white/5 transition-all active:scale-90 duration-150 ease-out">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase">Settings</span>
+</div>
+</nav>
+<!-- Overlay: App Picker Dialog (Simulated as visible for the screen requirement) -->
+<div class="fixed inset-0 z-[60] bg-slate-950/95 backdrop-blur-md p-6 flex flex-col hidden">
+<div class="flex justify-between items-center mb-8">
+<h2 class="font-h2 text-h2 text-cyan-400">Select Apps to Add</h2>
+<button class="text-slate-400 hover:text-white">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="grid grid-cols-3 gap-6 flex-1 overflow-y-auto pb-24">
+<!-- App Item Selected -->
+<div class="flex flex-col items-center gap-3 relative group">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center relative border-cyan-400 neon-glow">
+<span class="material-symbols-outlined text-3xl text-cyan-400">mail</span>
+<div class="absolute -top-2 -right-2 bg-gradient-primary w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-950">
+<span class="material-symbols-outlined text-slate-950 text-[14px] font-bold">check</span>
+</div>
+</div>
+<span class="font-label-sm text-center text-white">Outlook</span>
+</div>
+<!-- App Item Selected -->
+<div class="flex flex-col items-center gap-3 relative group">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center relative border-cyan-400 neon-glow">
+<span class="material-symbols-outlined text-3xl text-cyan-400">forum</span>
+<div class="absolute -top-2 -right-2 bg-gradient-primary w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-950">
+<span class="material-symbols-outlined text-slate-950 text-[14px] font-bold">check</span>
+</div>
+</div>
+<span class="font-label-sm text-center text-white">Slack</span>
+</div>
+<!-- App Item Selected -->
+<div class="flex flex-col items-center gap-3 relative group">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center relative border-cyan-400 neon-glow">
+<span class="material-symbols-outlined text-3xl text-cyan-400">language</span>
+<div class="absolute -top-2 -right-2 bg-gradient-primary w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-950">
+<span class="material-symbols-outlined text-slate-950 text-[14px] font-bold">check</span>
+</div>
+</div>
+<span class="font-label-sm text-center text-white">Chrome</span>
+</div>
+<!-- More Unselected Items -->
+<div class="flex flex-col items-center gap-3 opacity-50 grayscale">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">videocam</span>
+</div>
+<span class="font-label-sm text-center text-white">Zoom</span>
+</div>
+<div class="flex flex-col items-center gap-3 opacity-50 grayscale">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">music_note</span>
+</div>
+<span class="font-label-sm text-center text-white">Spotify</span>
+</div>
+<div class="flex flex-col items-center gap-3 opacity-50 grayscale">
+<div class="w-16 h-16 glass-card rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl">terminal</span>
+</div>
+<span class="font-label-sm text-center text-white">Terminal</span>
+</div>
+</div>
+<!-- Floating Action Button in Overlay -->
+<div class="fixed bottom-10 left-1/2 -translate-x-1/2 w-[calc(100%-48px)]">
+<button class="w-full bg-gradient-primary py-4 rounded-full font-h2 text-on-secondary-fixed text-body-md shadow-2xl neon-glow active:scale-95 transition-all">
+                Done (3 selected)
+            </button>
+</div>
+</div>
+</body></html>

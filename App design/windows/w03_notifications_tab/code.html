@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Rajdhani:wght@400;500;600;700&amp;family=Nunito:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#2f3131",
+                        "inverse-surface": "#dfe2f3",
+                        "tertiary": "#ececec",
+                        "on-primary-fixed-variant": "#004f58",
+                        "error": "#ffb4ab",
+                        "surface-container-highest": "#313442",
+                        "primary-fixed": "#9cf0ff",
+                        "on-error-container": "#ffdad6",
+                        "on-secondary-container": "#c0acff",
+                        "primary-container": "#00e5ff",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "surface-container-lowest": "#0a0e1a",
+                        "on-tertiary-fixed-variant": "#454747",
+                        "surface-container-low": "#171b28",
+                        "tertiary-fixed": "#e2e2e2",
+                        "primary-fixed-dim": "#00daf3",
+                        "surface-container-high": "#262a37",
+                        "surface": "#0f131f",
+                        "surface-container": "#1b1f2c",
+                        "on-surface-variant": "#bac9cc",
+                        "surface-bright": "#353946",
+                        "outline-variant": "#3b494c",
+                        "surface-tint": "#00daf3",
+                        "surface-dim": "#0f131f",
+                        "background": "#0f131f",
+                        "on-error": "#690005",
+                        "secondary-fixed": "#e8deff",
+                        "on-primary-fixed": "#001f24",
+                        "inverse-primary": "#006875",
+                        "secondary": "#cdbdff",
+                        "primary": "#c3f5ff",
+                        "on-tertiary-container": "#575959",
+                        "on-secondary": "#370096",
+                        "error-container": "#93000a",
+                        "surface-variant": "#313442",
+                        "tertiary-container": "#d0d0d0",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "on-surface": "#dfe2f3",
+                        "secondary-fixed-dim": "#cdbdff",
+                        "on-secondary-fixed": "#20005f",
+                        "on-background": "#dfe2f3",
+                        "outline": "#849396",
+                        "on-secondary-fixed-variant": "#4f00d0",
+                        "secondary-container": "#5203d5",
+                        "on-primary-container": "#00626e",
+                        "on-primary": "#00363d",
+                        "inverse-on-surface": "#2c303d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "64px",
+                        "md": "24px",
+                        "gutter": "16px",
+                        "xs": "8px",
+                        "base": "4px",
+                        "sm": "16px",
+                        "lg": "40px",
+                        "margin": "32px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Nunito"],
+                        "body-lg": ["Nunito"],
+                        "label-caps": ["Rajdhani"],
+                        "h2": ["Rajdhani"],
+                        "h3": ["Rajdhani"],
+                        "h1": ["Rajdhani"],
+                        "data-mono": ["JetBrains Mono"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+                        "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                        "h2": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                        "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                        "h1": ["40px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                        "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(18, 25, 41, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+        }
+        .cyan-glow {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+        }
+        .active-glow {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 229, 255, 0.2);
+            border-radius: 9999px;
+        }
+        .primary-btn {
+            background: linear-gradient(135deg, #00E5FF 0%, #7000FF 100%);
+            transition: all 0.3s ease;
+        }
+        .primary-btn:hover {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body-md overflow-hidden h-screen flex">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center h-[48px] px-4 border-b border-white/10 bg-[#0D1220] text-[#00E5FF] font-['Space_Grotesk'] tracking-tight shadow-none">
+<div class="flex items-center gap-4">
+<span class="text-lg font-bold text-white uppercase tracking-widest">NexLink</span>
+<div class="h-4 w-[1px] bg-white/10 mx-2"></div>
+<span class="font-data-mono text-xs opacity-60">SESSION_SYNC_ID: 8829-X</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg">
+<span class="material-symbols-outlined text-[20px]" data-icon="remove">remove</span>
+</button>
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg">
+<span class="material-symbols-outlined text-[20px]" data-icon="check_box_outline_blank">check_box_outline_blank</span>
+</button>
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg">
+<span class="material-symbols-outlined text-[20px]" data-icon="close">close</span>
+</button>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] border-r border-white/10 bg-[#0D1220]/90 backdrop-blur-md z-40 flex flex-col py-16 px-4 gap-2">
+<div class="flex items-center gap-3 px-2 mb-6">
+<div class="w-10 h-10 rounded-xl bg-primary-container/20 border border-primary-container/30 flex items-center justify-center overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="Cyberpunk style profile avatar with neon highlights and futuristic tech visor" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAclMj2w0J2xYEKj8F38APL9exjpu2oMesB9rS0c_UXLOFXXhJvqKSHvzVK70EDJtRgtg9spgDVqr261FyOp1NfimmQTFt49Kr1Goc5CZHu3LySSDWhFQKzMIdflSuMKunHXlD7O_eEpgAwh2ERexJ-_fVj4CmIXcBr2YXloyDJnWUfQeajtboAnP9-0sKlyOrH2bH6tM1Fr7Keuw6SCMDPRyBoFTo8AkR0cLYxWIgO5hF4zpwJ3ERuMXSEwPdXQfI1LK0U1O7v79p2"/>
+</div>
+<div>
+<p class="font-['Space_Grotesk'] font-bold text-sm text-white">NexLink</p>
+<p class="text-[10px] text-primary-container font-data-mono flex items-center gap-1">
+<span class="w-1 h-1 bg-primary-container rounded-full animate-pulse"></span>
+                    System Synced
+                </p>
+</div>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="home">home</span>
+                Home
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="sensors_kronecker">sensors_krx</span>
+                Mobile Status
+            </a>
+<!-- Active Tab -->
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#00E5FF] bg-white/5 border-r-2 border-[#00E5FF] font-['Space_Grotesk'] font-bold text-sm" href="#">
+<span class="material-symbols-outlined" data-icon="notifications" style="font-variation-settings: 'FILL' 1;">notifications</span>
+                Notifications
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="folder_open">folder_open</span>
+                File Manager
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="play_arrow">play_arrow</span>
+                Media
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="content_paste">content_paste</span>
+                Clipboard
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="grid_view">grid_view</span>
+                App Launcher
+            </a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] transition-all font-['Space_Grotesk'] font-medium text-sm group" href="#">
+<span class="material-symbols-outlined group-hover:text-[#00E5FF]" data-icon="settings">settings</span>
+                Settings
+            </a>
+</nav>
+<div class="mt-auto pt-6">
+<button class="w-full primary-btn text-white text-xs font-bold py-3 rounded-lg flex items-center justify-center gap-2 uppercase tracking-widest active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-sm" data-icon="link">link</span>
+                Device Connected
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] pt-[48px] w-full min-h-screen overflow-y-auto custom-scrollbar flex flex-col">
+<div class="p-8 max-w-[1400px] w-full mx-auto space-y-8">
+<!-- Header Section -->
+<div class="flex justify-between items-end border-b border-white/5 pb-6">
+<div>
+<p class="font-label-caps text-primary-container mb-1">SYSTEM ACTIVITY</p>
+<h1 class="font-h1 text-on-surface">Notifications</h1>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-primary-container/30 rounded-lg text-primary-container hover:bg-primary-container/10 transition-all font-label-caps active:scale-95">
+<span class="material-symbols-outlined text-[18px]" data-icon="delete_sweep">delete_sweep</span>
+                    Clear All
+                </button>
+</div>
+<!-- Filter Row -->
+<div class="flex items-center gap-3 overflow-x-auto pb-2 custom-scrollbar">
+<button class="px-5 py-2 rounded-full bg-primary-container text-on-primary-container font-label-caps shadow-[0_0_15px_rgba(0,229,255,0.3)] transition-all">All</button>
+<button class="px-5 py-2 rounded-full glass-card hover:border-primary-container/50 text-on-surface font-label-caps transition-all flex items-center gap-2">
+<img alt="Chrome" class="w-4 h-4 rounded-sm" data-alt="Chrome web browser logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDq0hTzwytyPY8SAukxyxzD6QNYPjBacpCtFYiSiaBW1B41K5aPV6tiwyDv5IzSBBzUM_yZTk73tPYYtuO77anWL-Pl2VnrtmqcaqoGq93fGMKi8NqHEmAkfG2aNvl-6KE7iTtWDGqOt_5zSEiOo-fWjI8UNnuJfnkLl00s4taPml5su1iBcMZrSsXDaOgazLXk1SGveMWwHNV_Gv21DWxP0qSWMpEXt7cHJcTnm-rG6xHADkFC-qbcfVHo0TYykS3-n9lD7RkGdFEo"/>
+                    Chrome
+                </button>
+<button class="px-5 py-2 rounded-full glass-card hover:border-primary-container/50 text-on-surface font-label-caps transition-all flex items-center gap-2">
+<img alt="Slack" class="w-4 h-4 rounded-sm" data-alt="Slack messaging app logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCugK8OYP2PaX2KgMcXO5MsrRqSePuI9ifkmJAIIaYMvsqf1fiEFVL83JrS3UbkravDy-KNPz6dYjPwAI0385GOO8v4cnMF2ejDbnc2g3k-pO0VHE7UWns7C36Nd6ZeBbugYNkoMykK3o0t17ZmALdnpCykp224rS0DgIryeWdHJLyxjHov9Jx5A7GuHNgR5E3_a-5db-6IV6V8zvf2nUFn_Hm1plD4BZHJe43Co_Ze7wBPal6tYXzhrpyBW1dKS43khheuDg2hyTm7"/>
+                    Slack
+                </button>
+<button class="px-5 py-2 rounded-full glass-card hover:border-primary-container/50 text-on-surface font-label-caps transition-all flex items-center gap-2">
+<img alt="Discord" class="w-4 h-4 rounded-sm" data-alt="Discord app logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDdI7WeuEDFYh69Rd3UFecv8J3xLH0UvqVZDxbrnfv7oUsmTQtJBh-S9ZRct8JnMdQbRuIQ4FbrNcjtyCJsT63ZPKleG4Evjilcu-p6sBEeoajNPGAL2wvNKKS71gok-nVeKNR-Cnk56JQjsw4ACbFHFE_hdf6iJyNtRwAtgLF25-3bK6CkA2fg9yCMWJxpEjzosGsIjVnnzm2yQCGKcz4mEScqA6nxs2ftHmWbtuZWmIR60JrIvkJKRcX3aNoK6nyp959hpVYTTlhu"/>
+                    Discord
+                </button>
+<button class="px-5 py-2 rounded-full glass-card hover:border-primary-container/50 text-on-surface font-label-caps transition-all flex items-center gap-2">
+<img alt="VSCode" class="w-4 h-4 rounded-sm" data-alt="VS Code app logo icon" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKX0i1Rj0xcTTQsyQ9QymWIv5Sj9-xOAn_S3wLF3rFD1qrJecyvD2bkGVBkUbUYhC8CXRG6ClgvbtxW2e7Ko5vwF0-7qkR_nHUIOYB8nfzBhjq2TyFbfB3AhaJzwIPZpr9wbprwWmf7wBDZY48wEmAXa08vKoyVho-4NtcFWYhpC9PR9578jS5LJCMTv-nw8mScWLuTx3su5cknbX_713r4EqbbWO-JAVpGdaL3-bkDdvm4aP4TD4NuJvHwhfs8LD6-17yjhhx5ZLz"/>
+                    VSCode
+                </button>
+</div>
+<!-- 2-Column Grid -->
+<div class="grid grid-cols-12 gap-8 items-start">
+<!-- Left: Feed Section -->
+<div class="col-span-12 lg:col-span-7 space-y-4">
+<div class="flex items-center gap-3 mb-2 px-2">
+<span class="material-symbols-outlined text-primary-container" data-icon="forward_to_inbox">forward_to_inbox</span>
+<h2 class="font-h3">Sent to Mobile</h2>
+</div>
+<!-- Notification Card 1 -->
+<div class="glass-card p-5 group hover:border-primary-container/30 transition-all duration-300">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-xl bg-[#1A2236] border border-white/5 flex items-center justify-center shrink-0">
+<img alt="Slack" class="w-8 h-8" data-alt="Slack icon with clean modern colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1DVygiWDh_4-6LXPghSUHaVuk0o1WYWHkyP0xeZX3QXZZORfZMwsbWXtiCIXax4O0bcMWRPviAgL4MMtIMEz4w14O8a00j235grnzcH9IX9wHC9gkzs0dm-qZidmIU4SQGdBILgkW1wCae0AKgYb6NJe4aBA17BsRDK75l18Shhw48C4q653tp0vAwdxQAs4jzmn2ZZuFar5EdGe7HOiMktxL0TkPoVrWP9x8qzEK9p8dJZKh6prGFhjdxE4xdY_yBLKOgpiWR2gU"/>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex justify-between items-start">
+<h4 class="font-body-lg text-white">Slack • Project NexLink</h4>
+<span class="font-data-mono text-[11px] text-slate-500">2m ago</span>
+</div>
+<p class="text-slate-400 text-sm leading-relaxed">Sarah Miller: "The new glassmorphism cards look great! Ready for review on the main branch."</p>
+<div class="flex justify-between items-center pt-2">
+<div class="bg-primary-container/10 text-primary-container font-data-mono text-[10px] px-2 py-0.5 rounded border border-primary-container/20 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Delivered
+                                    </div>
+<button class="text-slate-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card 2 -->
+<div class="glass-card p-5 group hover:border-primary-container/30 transition-all duration-300">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-xl bg-[#1A2236] border border-white/5 flex items-center justify-center shrink-0">
+<img alt="Chrome" class="w-8 h-8" data-alt="Google Chrome icon with vibrant colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBHY7CqUlfRopsi-YbrG0VElfrHBTsfY3NMvs8vlF8HGIEE7V2SHXo8przz-baqREXbCEZRPSM9JhZM3766uu20ae-bQpP2BPKMlfbrnCkGoXS4xK24rPt4jq29zAdgL_mH2Ov3pVRyNr28yJy9KihMM4kGidOeM2mYxHHGmX_gHxiIkYXRRGplVTvNRtkWjhPbbpTGx0re5ZtSj4E6Vq5aPsw75aULpP1qTdYM6jbsZ9rxIra5rDzBU7M_IStnrGZH1TT6TKblHIG"/>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex justify-between items-start">
+<h4 class="font-body-lg text-white">Google Chrome • GitHub</h4>
+<span class="font-data-mono text-[11px] text-slate-500">14m ago</span>
+</div>
+<p class="text-slate-400 text-sm leading-relaxed">[Action Required] New sign-in detected on your account from a new Linux device in Seattle, WA.</p>
+<div class="flex justify-between items-center pt-2">
+<div class="bg-primary-container/10 text-primary-container font-data-mono text-[10px] px-2 py-0.5 rounded border border-primary-container/20 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Delivered
+                                    </div>
+<button class="text-slate-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Notification Card 3 -->
+<div class="glass-card p-5 group hover:border-primary-container/30 transition-all duration-300">
+<div class="flex gap-4">
+<div class="w-12 h-12 rounded-xl bg-[#1A2236] border border-white/5 flex items-center justify-center shrink-0">
+<img alt="Discord" class="w-8 h-8" data-alt="Discord game chat icon in blurple" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwliShCJmXdPknBe8baPb9lBEzykZzVUaEI2reLBmfUG0dsWZrnyquP738YVof8FOUQKMeD8v9LjganOlWVU3wMDInDOiu8Ub-L9CvJADPYvsKXQRHxW5w2lIBRjQRQcvTGS_PX6Y0oGKg2xuCloChR8CNZvkaztOQXtHaiC0wfOQ9M6otYVrsGkbct3I1A8xK-32hkOz4-h7caNyRR0EQWo0WDEnKUPO6NtRCI4djim8vHT_PuKHhlx0YkYqq1kGjMCm-yD8EmCrO"/>
+</div>
+<div class="flex-1 space-y-1">
+<div class="flex justify-between items-start">
+<h4 class="font-body-lg text-white">Discord • DevChannel</h4>
+<span class="font-data-mono text-[11px] text-slate-500">1h ago</span>
+</div>
+<p class="text-slate-400 text-sm leading-relaxed">@everyone The server maintenance is complete. High-frequency sync protocols are now live.</p>
+<div class="flex justify-between items-center pt-2">
+<div class="bg-primary-container/10 text-primary-container font-data-mono text-[10px] px-2 py-0.5 rounded border border-primary-container/20 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Delivered
+                                    </div>
+<button class="text-slate-500 hover:text-white transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="more_vert">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right: Forwarding Settings -->
+<div class="col-span-12 lg:col-span-5">
+<div class="glass-card overflow-hidden cyan-glow">
+<div class="bg-white/5 p-6 border-b border-white/5 flex justify-between items-center">
+<div>
+<h3 class="font-h3 text-white">Forwarding Settings</h3>
+<p class="text-xs text-slate-500 font-data-mono">Active Sync: Mobile Pro Max</p>
+</div>
+<button class="p-2 glass-card border-white/10 hover:border-primary-container/30 transition-all">
+<span class="material-symbols-outlined text-primary-container" data-icon="settings_suggest">settings_suggest</span>
+</button>
+</div>
+<div class="p-6 space-y-6">
+<!-- Toggle Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-[#1A2236] border border-white/5 flex items-center justify-center">
+<img alt="Chrome" data-alt="Chrome icon logo small" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYCkqzVL0FlXjha52PY_Cs5nENn3YXUzONonFws_Fsap8iROuFLGkYDOjfuEVukk3TwUIFI_u__USKLvdCLUyxTq7YwjWEG_B20-7ob4ZeMwBuLeHPz55IlwHyUHX6EI5AA9RLYj1dwAGd8I0o2B7YkEvFJIpEuEUCwgjk66trls7uKH7uxIG-ISgKqfohecXUQcAkknZqWmaC-1u81SuWvjI8mkrEw2Hbi3iAzSwvTs4FXs0ILUQ5QvCZv7Vt4AmLbTzjjcCtmxpX"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-white">Google Chrome</p>
+<p class="text-[10px] text-slate-500">1,242 sent this week</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-[#1A2236] border border-white/5 flex items-center justify-center">
+<img alt="Slack" data-alt="Slack icon logo small" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrK0XZBRblcV2f3PwKUCiO1lu1RCS6mBwnNuWRFDurWemzlo5EE6KgZB_NgPrD_1sIYWbpoZYeO1_jnnkLsgTSaXkM6_FRWIAeLeaHxBtTXHwlTyFnK4hzEqtxXNwLb0s-WN2zP1cslGb5xiJ4OAUR4SSOW2vMDRMXzY-ZI9ddmC2Kn3lsQzz0bOpVfzAdpyUsMPr55WuAkhZBsTUDbVK78gLsMGslDY4tMf7uT468vR7r07c6usYVUOqS6J-65r5-V65-Ul8OUyxW"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-white">Slack</p>
+<p class="text-[10px] text-slate-500">458 sent this week</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-[#1A2236] border border-white/5 flex items-center justify-center">
+<img alt="Discord" data-alt="Discord icon logo small" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBAl_U-xUOoF41XGJrBKKqAasT7ZA3uEnNVmGy01TamoZOn6Pfq3TT2YG4ckOq7t-5aD7L3rm65olwMF11dH3LkdLsV5TG0u-ck5mcpjrDakOukXuG0u1BvYIwJRLLu35G3FanajdBC9LQuMd0ymjxaT5jrSPLSm57ppnV836Qlmb3ja5P-Q99Bd-7mpq-lzi78TuvMK4gOjE4fVv8jp39ll20dO9Y-vK2t23IdQIN0dd0oa_fkrL7IrvOEY4-swAp1uBX3WvuJe7l7"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-white">Discord</p>
+<p class="text-[10px] text-slate-500">892 sent this week</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<!-- Toggle Item -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-[#1A2236] border border-white/5 flex items-center justify-center">
+<img alt="VSCode" data-alt="VS Code icon logo small" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZi1XSk82VsEX1UjvlzNT6EqWyY36NXCsYLIILgNcrGoruX-pN84xYXqCjFrkN6-UME40RbxfbSeP6wp5xypteYwBwlx8eDeCc1qU-YxlHU5JnCsv_yf78yixsK2yC25RwJgFMTnq0PuEL-lXmML8BhuDsEM8lYlc5s8V_ip3N3ir0MY4Q8wwTmaqMpEBbY9rUaUoF94gt7LYV4jG5UcdJHHKxA5wFYmx8dfRaQECxuN0hnzaEYhTT_i49Mool0aX_ufX9zsHKGXLo"/>
+</div>
+<div>
+<p class="text-sm font-semibold text-white">VSCode</p>
+<p class="text-[10px] text-slate-500">12 sent this week</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-container"></div>
+</label>
+</div>
+<div class="pt-4 mt-4 border-t border-white/5">
+<div class="p-4 bg-[#0D1220] rounded-xl border border-white/5">
+<p class="text-xs text-slate-500 mb-2 font-data-mono">SYNC VOLUME</p>
+<div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[75%] rounded-full shadow-[0_0_10px_#00E5FF]"></div>
+</div>
+<div class="flex justify-between mt-2 text-[10px] text-slate-500 font-data-mono">
+<span>2.4k Messages</span>
+<span>3k Limit</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Ad-hoc Info Card -->
+<div class="mt-6 glass-card p-5 border-primary-container/20">
+<div class="flex items-center gap-3 text-primary-container mb-3">
+<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+<h4 class="font-label-caps">Pro Tip</h4>
+</div>
+<p class="text-xs text-slate-400 leading-relaxed">Enable "Focus Mode" on your PC to automatically suppress all non-urgent mobile forwarding until your current session ends.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NexLink | Secure Connection</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Rajdhani:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;family=Nunito:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary": "#2f3131",
+                    "inverse-surface": "#dfe2f3",
+                    "tertiary": "#ececec",
+                    "on-primary-fixed-variant": "#004f58",
+                    "error": "#ffb4ab",
+                    "surface-container-highest": "#313442",
+                    "primary-fixed": "#9cf0ff",
+                    "on-error-container": "#ffdad6",
+                    "on-secondary-container": "#c0acff",
+                    "primary-container": "#00e5ff",
+                    "tertiary-fixed-dim": "#c6c6c7",
+                    "surface-container-lowest": "#0a0e1a",
+                    "on-tertiary-fixed-variant": "#454747",
+                    "surface-container-low": "#171b28",
+                    "tertiary-fixed": "#e2e2e2",
+                    "primary-fixed-dim": "#00daf3",
+                    "surface-container-high": "#262a37",
+                    "surface": "#0f131f",
+                    "surface-container": "#1b1f2c",
+                    "on-surface-variant": "#bac9cc",
+                    "surface-bright": "#353946",
+                    "outline-variant": "#3b494c",
+                    "surface-tint": "#00daf3",
+                    "surface-dim": "#0f131f",
+                    "background": "#0f131f",
+                    "on-error": "#690005",
+                    "secondary-fixed": "#e8deff",
+                    "on-primary-fixed": "#001f24",
+                    "inverse-primary": "#006875",
+                    "secondary": "#cdbdff",
+                    "primary": "#c3f5ff",
+                    "on-tertiary-container": "#575959",
+                    "on-secondary": "#370096",
+                    "error-container": "#93000a",
+                    "surface-variant": "#313442",
+                    "tertiary-container": "#d0d0d0",
+                    "on-tertiary-fixed": "#1a1c1c",
+                    "on-surface": "#dfe2f3",
+                    "secondary-fixed-dim": "#cdbdff",
+                    "on-secondary-fixed": "#20005f",
+                    "on-background": "#dfe2f3",
+                    "outline": "#849396",
+                    "on-secondary-fixed-variant": "#4f00d0",
+                    "secondary-container": "#5203d5",
+                    "on-primary-container": "#00626e",
+                    "on-primary": "#00363d",
+                    "inverse-on-surface": "#2c303d"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "64px",
+                    "md": "24px",
+                    "gutter": "16px",
+                    "xs": "8px",
+                    "base": "4px",
+                    "sm": "16px",
+                    "lg": "40px",
+                    "margin": "32px"
+            },
+            "fontFamily": {
+                    "body-md": ["Nunito"],
+                    "body-lg": ["Nunito"],
+                    "label-caps": ["Rajdhani"],
+                    "h2": ["Rajdhani"],
+                    "h3": ["Rajdhani"],
+                    "h1": ["Rajdhani"],
+                    "data-mono": ["JetBrains Mono"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+                    "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                    "h2": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                    "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                    "h1": ["40px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                    "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .dot-grid {
+            background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .qr-bracket {
+            width: 40px;
+            height: 40px;
+            position: absolute;
+            border-color: #00E5FF;
+        }
+        .custom-glow {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest min-h-screen text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- Custom Title Bar (From TopAppBar guidance) -->
+<header class="fixed top-0 left-0 w-full z-50 h-[48px] bg-[#0D1220] flex items-center justify-between px-4 border-b border-white/5 font-['Space_Grotesk'] tracking-tight">
+<div class="flex items-center gap-2">
+<div class="flex gap-1.5 px-2">
+<div class="w-3.5 h-3.5 rounded-full bg-[#FF5F56] border border-black/10"></div>
+<div class="w-3.5 h-3.5 rounded-full bg-[#FFBD2E] border border-black/10"></div>
+<div class="w-3.5 h-3.5 rounded-full bg-[#27C93F] border border-black/10"></div>
+</div>
+<span class="text-lg font-bold text-white uppercase tracking-widest">NexLink</span>
+</div>
+<div class="flex items-center gap-4 text-slate-400">
+<span class="material-symbols-outlined hover:bg-white/5 p-1 transition-colors rounded cursor-pointer" data-icon="remove">remove</span>
+<span class="material-symbols-outlined hover:bg-white/5 p-1 transition-colors rounded cursor-pointer" data-icon="check_box_outline_blank">check_box_outline_blank</span>
+<span class="material-symbols-outlined hover:bg-white/5 p-1 transition-colors rounded cursor-pointer" data-icon="close">close</span>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="relative pt-[48px] min-h-screen w-full flex items-center justify-center dot-grid">
+<!-- Connection Card -->
+<div class="relative z-10 w-[480px] h-[560px] bg-surface-container/60 backdrop-blur-[20px] border border-white/10 rounded-xl p-xl flex flex-col items-center justify-between custom-glow">
+<!-- Logo & Title Section -->
+<div class="text-center">
+<div class="flex items-center justify-center gap-3 mb-2">
+<span class="material-symbols-outlined text-[48px] text-primary-container" data-icon="sync_alt" style="font-variation-settings: 'FILL' 1;">sync_alt</span>
+<h1 class="font-h1 text-h1 text-white uppercase tracking-widest leading-none">NexLink</h1>
+</div>
+<p class="font-body-md text-slate-400">Waiting for mobile connection...</p>
+</div>
+<!-- QR Code Area -->
+<div class="relative w-[260px] h-[260px] flex items-center justify-center bg-transparent group">
+<!-- Brackets -->
+<div class="qr-bracket top-0 left-0 border-t-4 border-l-4 rounded-tl-lg"></div>
+<div class="qr-bracket top-0 right-0 border-t-4 border-r-4 rounded-tr-lg"></div>
+<div class="qr-bracket bottom-0 left-0 border-b-4 border-l-4 rounded-bl-lg"></div>
+<div class="qr-bracket bottom-0 right-0 border-b-4 border-r-4 rounded-br-lg"></div>
+<!-- QR Code Image -->
+<div class="w-[220px] h-[220px] bg-white rounded-md p-3">
+<img alt="QR Code for Mobile Sync" class="w-full h-full object-contain" data-alt="abstract sharp monochrome QR code with geometric patterns on a clean white background for mobile pairing" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3ZC-VycT86AODdO6SlU1iZ26s6uUE7pKIS9xhRdy7yjm9DfpftpO7QJVj9r4DHEQ6axEK8gaOP_PzHpJeArXXoR03UUETOEjn6UUJ-8J-251qlsyAm0MBYOdYc-JhKXrwulIUnM5H2cCg6uMfyTxOamHMBFy4COAHDvSgV2o60bzxRpmU5zwGDDwsxwGHN6-8J6CRBoLLBvN_l3B8k-SrnqOtSkMADgnl0RBQIAgx_piFFJuqfZC1lEV2g4nbsKXv98zNzA7kFh1H"/>
+</div>
+<!-- Pulsing Scan Line Effect -->
+<div class="absolute w-[240px] h-0.5 bg-primary-container/40 blur-[2px] top-1/2 left-1/2 -translate-x-1/2 shadow-[0_0_10px_#00E5FF]"></div>
+</div>
+<!-- Instructions & Status -->
+<div class="text-center space-y-4">
+<div class="px-6 py-3 bg-surface-container-high rounded-lg border border-white/5">
+<p class="font-body-md text-on-surface">Open <span class="text-primary-container font-bold">NexLink</span> on Android and tap <span class="font-semibold">Scan QR</span></p>
+</div>
+<div class="flex items-center justify-center gap-3 font-data-mono text-data-mono">
+<div class="flex items-center gap-2 px-3 py-1 bg-primary-container/10 text-primary-container rounded-full">
+<div class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></div>
+<span>Server running</span>
+</div>
+<span class="text-slate-500">·</span>
+<span class="text-slate-400">Port 8765</span>
+</div>
+</div>
+</div>
+<!-- Decorative Background Element -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary-container/5 rounded-full blur-[120px] pointer-events-none"></div>
+</main>
+<!-- Simple Footer Actions (Back navigation rule check: Suppressed nav but kept minimal tools) -->
+<div class="fixed bottom-margin right-margin flex gap-sm">
+<button class="flex items-center gap-2 px-sm py-2 rounded-lg border border-primary-container text-primary-container font-label-caps hover:bg-primary-container/10 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]" data-icon="help_outline">help_outline</span>
+            TROUBLESHOOTING
+        </button>
+<button class="flex items-center gap-2 px-sm py-2 rounded-lg bg-surface-container-high border border-white/10 text-on-surface font-label-caps hover:bg-surface-bright transition-all active:scale-95">
+<span class="material-symbols-outlined text-[18px]" data-icon="settings">settings</span>
+            SETTINGS
+        </button>
+</div>
+</body></html>

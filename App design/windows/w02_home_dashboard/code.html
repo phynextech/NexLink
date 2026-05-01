@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Rajdhani:wght@400;500;600;700&amp;family=Nunito:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(18, 25, 41, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .cyan-glow {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 229, 255, 0.2);
+            border-radius: 999px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary": "#2f3131",
+                      "inverse-surface": "#dfe2f3",
+                      "tertiary": "#ececec",
+                      "on-primary-fixed-variant": "#004f58",
+                      "error": "#ffb4ab",
+                      "surface-container-highest": "#313442",
+                      "primary-fixed": "#9cf0ff",
+                      "on-error-container": "#ffdad6",
+                      "on-secondary-container": "#c0acff",
+                      "primary-container": "#00e5ff",
+                      "tertiary-fixed-dim": "#c6c6c7",
+                      "surface-container-lowest": "#0a0e1a",
+                      "on-tertiary-fixed-variant": "#454747",
+                      "surface-container-low": "#171b28",
+                      "tertiary-fixed": "#e2e2e2",
+                      "primary-fixed-dim": "#00daf3",
+                      "surface-container-high": "#262a37",
+                      "surface": "#0f131f",
+                      "surface-container": "#1b1f2c",
+                      "on-surface-variant": "#bac9cc",
+                      "surface-bright": "#353946",
+                      "outline-variant": "#3b494c",
+                      "surface-tint": "#00daf3",
+                      "surface-dim": "#0f131f",
+                      "background": "#0f131f",
+                      "on-error": "#690005",
+                      "secondary-fixed": "#e8deff",
+                      "on-primary-fixed": "#001f24",
+                      "inverse-primary": "#006875",
+                      "secondary": "#cdbdff",
+                      "primary": "#c3f5ff",
+                      "on-tertiary-container": "#575959",
+                      "on-secondary": "#370096",
+                      "error-container": "#93000a",
+                      "surface-variant": "#313442",
+                      "tertiary-container": "#d0d0d0",
+                      "on-tertiary-fixed": "#1a1c1c",
+                      "on-surface": "#dfe2f3",
+                      "secondary-fixed-dim": "#cdbdff",
+                      "on-secondary-fixed": "#20005f",
+                      "on-background": "#dfe2f3",
+                      "outline": "#849396",
+                      "on-secondary-fixed-variant": "#4f00d0",
+                      "secondary-container": "#5203d5",
+                      "on-primary-container": "#00626e",
+                      "on-primary": "#00363d",
+                      "inverse-on-surface": "#2c303d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xl": "64px",
+                      "md": "24px",
+                      "gutter": "16px",
+                      "xs": "8px",
+                      "base": "4px",
+                      "sm": "16px",
+                      "lg": "40px",
+                      "margin": "32px"
+              },
+              "fontFamily": {
+                      "body-md": ["Nunito"],
+                      "body-lg": ["Nunito"],
+                      "label-caps": ["Rajdhani"],
+                      "h2": ["Rajdhani"],
+                      "h3": ["Rajdhani"],
+                      "h1": ["Rajdhani"],
+                      "data-mono": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+                      "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                      "h2": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                      "h1": ["40px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                      "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body-md overflow-hidden h-screen flex">
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full w-[240px] border-r border-white/10 bg-[#0D1220]/90 backdrop-blur-md flex flex-col py-6 px-4 gap-2 z-50">
+<div class="px-4 mb-8">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-container to-secondary-container flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<div>
+<h1 class="font-h3 text-primary-container leading-none uppercase tracking-widest text-sm">NexLink</h1>
+<span class="text-[10px] font-data-mono text-primary-container opacity-80 uppercase">System Synced</span>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<!-- Active Tab: Home -->
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-primary-container bg-white/5 border-r-2 border-primary-container font-h3 text-sm transition-all" href="#">
+<span class="material-symbols-outlined">home</span>
+<span>Home</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">sensors_krx</span>
+<span>Mobile Status</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">notifications</span>
+<span>Notifications</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span>File Manager</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">play_arrow</span>
+<span>Media</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">content_paste</span>
+<span>Clipboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">grid_view</span>
+<span>App Launcher</span>
+</a>
+<div class="mt-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-primary-container transition-all scale-95 active:scale-90 font-h3 text-sm" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</div>
+</nav>
+<div class="mt-6 px-4 pt-6 border-t border-white/5">
+<div class="flex items-center gap-3">
+<img alt="User Profile" class="w-10 h-10 rounded-full border border-primary-container/30" data-alt="portrait of a tech professional man with stylish glasses and clean-cut appearance in a moody office setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgAjVNNLshHxgXoUPpxTel1MFMnIVYBZD2wdLOWI-4mRN6fzpWq_WcnMzYFmptHRdk12Bl7S8PsQvetUIqUScHDRY8LllMFhf8lFvPEXlOA9bD5P2spguB5GPSPBgXfgpXO3ku12rjnaiqevylnAvUj9bnG0YJM9YlrfyDdQa4_L3EF1fAg_pv6gnE1URQ4tR-Spu3FsytvyFrdBxXfVCc8a2Z4l563ohCaxgOlyRaOcQfgt95jzkrWD1_WJe2aNV5JQ0suG_eBNT3"/>
+<div class="overflow-hidden">
+<p class="text-xs font-h3 text-on-surface truncate">Alex Rivera</p>
+<div class="flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></div>
+<p class="text-[10px] font-data-mono text-primary-container">Device Connected</p>
+</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-[240px] flex flex-col h-full bg-[#0A0E1A]">
+<!-- TopAppBar Shell -->
+<header class="h-[48px] w-full flex items-center justify-between px-margin border-b border-white/10 bg-[#0D1220] z-40">
+<div class="flex items-center gap-4">
+<h2 class="font-h2 text-xl text-on-surface">Home</h2>
+<span class="text-[10px] font-data-mono bg-white/5 px-2 py-1 rounded text-slate-400">Last synced: just now</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="material-symbols-outlined text-slate-400 hover:bg-white/5 w-8 h-8 rounded flex items-center justify-center transition-colors">remove</button>
+<button class="material-symbols-outlined text-slate-400 hover:bg-white/5 w-8 h-8 rounded flex items-center justify-center transition-colors">check_box_outline_blank</button>
+<button class="material-symbols-outlined text-slate-400 hover:bg-white/5 w-8 h-8 rounded flex items-center justify-center transition-colors">close</button>
+</div>
+</header>
+<!-- Scrollable Dashboard Content -->
+<div class="flex-1 p-margin overflow-y-auto custom-scrollbar">
+<div class="grid grid-cols-12 gap-gutter max-w-7xl mx-auto h-full">
+<!-- Col 1: Device Control -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+<!-- Mobile Preview Card -->
+<div class="glass-card rounded-xl p-md flex flex-col items-center justify-center relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-t from-primary-container/5 to-transparent pointer-events-none"></div>
+<div class="w-48 h-96 bg-surface-container-high rounded-[32px] border-[4px] border-surface-container-highest relative overflow-hidden shadow-2xl">
+<img alt="Phone Preview" class="w-full h-full object-cover" data-alt="abstract tech wallpaper with vibrant blue and magenta neon light waves and futuristic depth of field" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7nzWsbMoPHoUd0y2cCtLBB__GmfIBUbiNXV4sZ6Jo4f1bfDBs7r6uvHdKZiY1UJ_Cu24OlTXJIAiGuX18qnQ35MFCqmU7xH181cV9ukI3PORxpQ0aGu4o-vQe3waXammBZM9dDemEld4cxv3g1NuJb7DNPGlN0yf7WmiEenqCyIJqHHSAycDfTKk0dXpTFaDqmHntPkb2LkInibQE_Bp0RtUk1Ou5_p0it3k7Y8u0xcCXTYVupGtxk5pqBroGDH0EaKHUUQBl2WbF"/>
+<div class="absolute top-0 w-full p-4 flex justify-between text-white">
+<span class="text-[10px] font-data-mono">9:41</span>
+<div class="flex gap-1">
+<span class="material-symbols-outlined text-xs">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-xs">battery_full</span>
+</div>
+</div>
+</div>
+<div class="mt-md text-center">
+<h3 class="font-h3 text-on-surface">Samsung Galaxy S24</h3>
+<p class="font-data-mono text-xs text-primary-container/70">Android 14 • 5G Network</p>
+</div>
+</div>
+<!-- Quick Actions Grid -->
+<div class="grid grid-cols-2 gap-base">
+<button class="glass-card rounded-lg p-md flex flex-col items-center gap-2 hover:bg-white/5 transition-all group active:scale-95">
+<span class="material-symbols-outlined text-primary-container text-2xl group-hover:scale-110 transition-transform">lock</span>
+<span class="font-label-caps text-on-surface">Lock</span>
+</button>
+<button class="glass-card rounded-lg p-md flex flex-col items-center gap-2 hover:bg-white/5 transition-all group active:scale-95">
+<span class="material-symbols-outlined text-primary-container text-2xl group-hover:scale-110 transition-transform">photo_camera</span>
+<span class="font-label-caps text-on-surface">Camera</span>
+</button>
+<button class="glass-card rounded-lg p-md flex flex-col items-center gap-2 hover:bg-white/5 transition-all group active:scale-95">
+<span class="material-symbols-outlined text-primary-container text-2xl group-hover:scale-110 transition-transform">screen_share</span>
+<span class="font-label-caps text-on-surface">Mirror</span>
+</button>
+<button class="glass-card rounded-lg p-md flex flex-col items-center gap-2 hover:bg-white/5 transition-all group active:scale-95">
+<span class="material-symbols-outlined text-primary-container text-2xl group-hover:scale-110 transition-transform">content_paste</span>
+<span class="font-label-caps text-on-surface">Clipboard</span>
+</button>
+</div>
+</div>
+<!-- Col 2: System Status & Controls -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+<!-- Status Grid -->
+<div class="glass-card rounded-xl p-md flex flex-col gap-md">
+<h3 class="font-h3 text-primary-container border-b border-white/5 pb-2 uppercase tracking-widest text-xs">Mobile Status</h3>
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">wifi</span>
+<span class="font-body-md">Wi-Fi Connection</span>
+</div>
+<span class="font-data-mono text-xs text-primary-container bg-primary-container/10 px-2 py-1 rounded">5.0 GHz</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">battery_charging_80</span>
+<span class="font-body-md">Battery Level</span>
+</div>
+<span class="font-data-mono text-xs text-on-surface">84%</span>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">bluetooth</span>
+<span class="font-body-md">Bluetooth</span>
+</div>
+<span class="font-data-mono text-xs text-slate-500">Standby</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between font-label-caps text-[10px]">
+<span>Storage Capacity</span>
+<span>214GB / 512GB</span>
+</div>
+<div class="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[42%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Remote Sliders -->
+<div class="glass-card rounded-xl p-md flex flex-col gap-md">
+<h3 class="font-h3 text-primary-container border-b border-white/5 pb-2 uppercase tracking-widest text-xs">Remote Overrides</h3>
+<div class="space-y-6">
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">volume_up</span>
+<span class="font-label-caps text-xs">Volume</span>
+</div>
+<span class="font-data-mono text-xs">65%</span>
+</div>
+<input class="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary-container" type="range"/>
+</div>
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">light_mode</span>
+<span class="font-label-caps text-xs">Brightness</span>
+</div>
+<span class="font-data-mono text-xs">90%</span>
+</div>
+<input class="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary-container" type="range"/>
+</div>
+</div>
+</div>
+<!-- Sync Action -->
+<button class="w-full py-4 rounded-xl bg-gradient-to-r from-primary-container to-secondary-container text-on-primary-container font-h2 text-sm flex items-center justify-center gap-2 cyan-glow hover:brightness-110 transition-all">
+<span class="material-symbols-outlined">sync</span>
+                        FORCE SYSTEM SYNC
+                    </button>
+</div>
+<!-- Col 3: Notifications & Quick Settings -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+<!-- Notifications Toggle List -->
+<div class="glass-card rounded-xl p-md flex flex-col gap-md flex-1">
+<div class="flex items-center justify-between border-b border-white/5 pb-2">
+<h3 class="font-h3 text-primary-container uppercase tracking-widest text-xs">Active Notifications</h3>
+<button class="text-[10px] font-label-caps text-primary-container hover:underline">Dismiss All</button>
+</div>
+<div class="space-y-base overflow-y-auto custom-scrollbar pr-2 max-h-[400px]">
+<!-- Notif 1 -->
+<div class="p-sm bg-white/5 rounded-lg border border-white/5 hover:bg-white/10 transition-colors">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded bg-secondary-container/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-secondary text-sm">mail</span>
+</div>
+<div>
+<div class="flex justify-between items-center">
+<p class="font-h3 text-xs">Google Mail</p>
+<span class="text-[10px] font-data-mono text-slate-500">2m ago</span>
+</div>
+<p class="text-xs text-slate-400 mt-1 line-clamp-2">New Security Alert: A new device has signed into your account...</p>
+</div>
+</div>
+</div>
+<!-- Notif 2 -->
+<div class="p-sm bg-white/5 rounded-lg border border-white/5 hover:bg-white/10 transition-colors">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded bg-primary-container/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary-container text-sm">chat_bubble</span>
+</div>
+<div>
+<div class="flex justify-between items-center">
+<p class="font-h3 text-xs">WhatsApp</p>
+<span class="text-[10px] font-data-mono text-slate-500">12m ago</span>
+</div>
+<p class="text-xs text-slate-400 mt-1">Sarah: "The presentation is ready for review. Check the link..."</p>
+</div>
+</div>
+</div>
+<!-- Notif 3 -->
+<div class="p-sm bg-white/5 rounded-lg border border-white/5 hover:bg-white/10 transition-colors">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded bg-error-container/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-error text-sm">calendar_today</span>
+</div>
+<div>
+<div class="flex justify-between items-center">
+<p class="font-h3 text-xs">Calendar</p>
+<span class="text-[10px] font-data-mono text-slate-500">45m ago</span>
+</div>
+<p class="text-xs text-slate-400 mt-1">Project Sync starts in 15 minutes.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Settings Toggles -->
+<div class="glass-card rounded-xl p-md flex flex-col gap-md">
+<h3 class="font-h3 text-primary-container border-b border-white/5 pb-2 uppercase tracking-widest text-xs">System Modes</h3>
+<div class="grid grid-cols-1 gap-2">
+<div class="flex items-center justify-between p-sm rounded-lg bg-surface-container-high/50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">do_not_disturb_on</span>
+<span class="font-body-md text-sm">Do Not Disturb</span>
+</div>
+<div class="w-10 h-5 bg-primary-container rounded-full relative cursor-pointer">
+<div class="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-sm rounded-lg bg-surface-container-high/50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">nightlight</span>
+<span class="font-body-md text-sm">Focus Mode</span>
+</div>
+<div class="w-10 h-5 bg-white/10 rounded-full relative cursor-pointer">
+<div class="absolute left-0.5 top-0.5 w-4 h-4 bg-slate-500 rounded-full"></div>
+</div>
+</div>
+<div class="flex items-center justify-between p-sm rounded-lg bg-surface-container-high/50">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary-container">save</span>
+<span class="font-body-md text-sm">Power Saver</span>
+</div>
+<div class="w-10 h-5 bg-white/10 rounded-full relative cursor-pointer">
+<div class="absolute left-0.5 top-0.5 w-4 h-4 bg-slate-500 rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Rajdhani:wght@400;500;600;700&amp;family=Nunito:wght@400;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-tertiary": "#2f3131",
+            "inverse-surface": "#dfe2f3",
+            "tertiary": "#ececec",
+            "on-primary-fixed-variant": "#004f58",
+            "error": "#ffb4ab",
+            "surface-container-highest": "#313442",
+            "primary-fixed": "#9cf0ff",
+            "on-error-container": "#ffdad6",
+            "on-secondary-container": "#c0acff",
+            "primary-container": "#00e5ff",
+            "tertiary-fixed-dim": "#c6c6c7",
+            "surface-container-lowest": "#0a0e1a",
+            "on-tertiary-fixed-variant": "#454747",
+            "surface-container-low": "#171b28",
+            "tertiary-fixed": "#e2e2e2",
+            "primary-fixed-dim": "#00daf3",
+            "surface-container-high": "#262a37",
+            "surface": "#0f131f",
+            "surface-container": "#1b1f2c",
+            "on-surface-variant": "#bac9cc",
+            "surface-bright": "#353946",
+            "outline-variant": "#3b494c",
+            "surface-tint": "#00daf3",
+            "surface-dim": "#0f131f",
+            "background": "#0f131f",
+            "on-error": "#690005",
+            "secondary-fixed": "#e8deff",
+            "on-primary-fixed": "#001f24",
+            "inverse-primary": "#006875",
+            "secondary": "#cdbdff",
+            "primary": "#c3f5ff",
+            "on-tertiary-container": "#575959",
+            "on-secondary": "#370096",
+            "error-container": "#93000a",
+            "surface-variant": "#313442",
+            "tertiary-container": "#d0d0d0",
+            "on-tertiary-fixed": "#1a1c1c",
+            "on-surface": "#dfe2f3",
+            "secondary-fixed-dim": "#cdbdff",
+            "on-secondary-fixed": "#20005f",
+            "on-background": "#dfe2f3",
+            "outline": "#849396",
+            "on-secondary-fixed-variant": "#4f00d0",
+            "secondary-container": "#5203d5",
+            "on-primary-container": "#00626e",
+            "on-primary": "#00363d",
+            "inverse-on-surface": "#2c303d"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "xl": "64px",
+            "md": "24px",
+            "gutter": "16px",
+            "xs": "8px",
+            "base": "4px",
+            "sm": "16px",
+            "lg": "40px",
+            "margin": "32px"
+          },
+          "fontFamily": {
+            "body-md": ["Nunito"],
+            "body-lg": ["Nunito"],
+            "label-caps": ["Rajdhani"],
+            "h2": ["Rajdhani"],
+            "h3": ["Rajdhani"],
+            "h1": ["Rajdhani"],
+            "data-mono": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+            "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+            "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "700"}],
+            "h2": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+            "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+            "h1": ["40px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "700"}],
+            "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      background-color: #0A0E1A;
+      color: #dfe2f3;
+      overflow-x: hidden;
+    }
+    .glass-card {
+      background: rgba(18, 25, 41, 0.6);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+    }
+    .cyan-glow {
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+    }
+    .active-glow {
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.3);
+    }
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 229, 255, 0.2);
+      border-radius: 99px;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .primary-gradient {
+      background: linear-gradient(135deg, #00E5FF 0%, #7000FF 100%);
+    }
+  </style>
+</head>
+<body class="font-body-md antialiased">
+<!-- TopAppBar Section -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center h-[48px] px-4 bg-[#0D1220] border-b border-white/10 font-['Space_Grotesk'] tracking-tight">
+<div class="flex items-center gap-4">
+<span class="text-lg font-bold text-white uppercase tracking-widest">NexLink</span>
+<div class="h-4 w-px bg-white/10 mx-2"></div>
+<span class="text-sm font-data-mono text-[#00E5FF] uppercase">Launcher Mode</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+<span class="material-symbols-outlined text-[16px] text-[#00E5FF]">sync</span>
+<span class="text-[11px] font-label-caps text-white">SYSTEM SYNCED</span>
+</div>
+<div class="flex items-center gap-1">
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg"><span class="material-symbols-outlined text-slate-400 text-sm">remove</span></button>
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg"><span class="material-symbols-outlined text-slate-400 text-sm">check_box_outline_blank</span></button>
+<button class="p-2 hover:bg-white/5 transition-colors rounded-lg"><span class="material-symbols-outlined text-slate-400 text-sm">close</span></button>
+</div>
+</div>
+</header>
+<div class="flex pt-[48px] h-screen">
+<!-- SideNavBar Section -->
+<aside class="fixed left-0 top-0 h-full w-[240px] border-r border-white/10 bg-[#0D1220]/90 backdrop-blur-md pt-[48px] z-40 flex flex-col py-6 px-4 gap-2">
+<div class="mb-6 px-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-container to-secondary-container p-[1px]">
+<div class="w-full h-full rounded-xl bg-[#0D1220] flex items-center justify-center overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="minimalist 3d avatar of a tech-savvy user with blue highlights and glasses on dark background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsODPnjawSrYDrX_2Pjd1ce5KBURINnG0rvZ-pOX95oJ7LMgZbI3-s0ZDtXZh-1wA-xPtQJFRDrGTgOJh9f3tYgvcmPj71rqW_P5sx10Pz_RqSj7PnKdFEc7Krh2ziCqBVd74xUUUHOBrKvKqPTRzClUYu9mLFm9Tb6Ob4unSpKW8Zxm5VlFvi8YqWsGyJ4h6oLKajGTbNg_xXuDdxkd6P2FAPuOWKBZ_8aw2OYVoEUkqQAsiJmVYXH0bGn6Y8CpgZ_RH-J30eKxEj"/>
+</div>
+</div>
+<div>
+<p class="text-sm font-bold text-white font-['Space_Grotesk']">NexLink</p>
+<p class="text-[10px] text-slate-500 font-data-mono">System Synced</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">home</span>
+<span>Home</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">sensors_krx</span>
+<span>Mobile Status</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span>Notifications</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">folder_open</span>
+<span>File Manager</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+<span>Media</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">content_paste</span>
+<span>Clipboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[#00E5FF] bg-white/5 border-r-2 border-[#00E5FF] font-bold font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">grid_view</span>
+<span>App Launcher</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-[#1A2236] hover:text-[#00E5FF] transition-all font-['Space_Grotesk'] font-medium text-sm scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto px-2">
+<div class="p-3 glass-card bg-primary-container/10 border-primary-container/20">
+<p class="text-[10px] font-label-caps text-[#00E5FF] mb-1">CONNECTIVITY</p>
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse"></div>
+<span class="text-xs text-white font-medium">Device Connected</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Canvas Section -->
+<main class="ml-[240px] flex-1 p-margin overflow-y-auto">
+<div class="max-w-7xl mx-auto">
+<!-- Header & Search -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+<div>
+<h1 class="font-h1 text-h1 text-white mb-2 uppercase">App Launcher</h1>
+<p class="font-body-md text-on-surface-variant max-w-xl">Unified control over your mobile ecosystem. Launch, sync, and organize apps across all connected devices.</p>
+</div>
+<div class="flex items-center gap-3 w-full md:w-auto">
+<div class="relative flex-1 md:w-80 group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#00E5FF] transition-colors">search</span>
+<input class="w-full bg-[#1A2236] border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white font-body-md focus:outline-none focus:border-[#00E5FF] focus:ring-4 focus:ring-[#00E5FF]/10 transition-all" placeholder="Search apps..." type="text"/>
+</div>
+<button class="glass-card h-full px-4 flex items-center gap-2 hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined text-slate-300">filter_list</span>
+<span class="text-sm font-label-caps text-white">FILTER</span>
+</button>
+</div>
+</header>
+<!-- Section: Added to Mobile -->
+<section class="mb-12">
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-h2 text-h2 text-white flex items-center gap-3">
+              Added to Mobile
+              <span class="text-xs font-data-mono text-[#00E5FF] bg-[#00E5FF]/10 px-2 py-0.5 rounded-full">5 SYNCED</span>
+</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-5 gap-gutter">
+<!-- App Card 1: Chrome -->
+<div class="glass-card p-6 group cursor-pointer hover:border-[#00E5FF]/40 transition-all active:scale-[0.98]">
+<div class="relative w-16 h-16 mb-4 mx-auto bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<img alt="Chrome" class="w-10 h-10" data-alt="stylized modern browser icon with colorful segments and geometric sleek design" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBwkFL-UcqGwDTSzkoGdvS_yJpLc6JEhd5XRL_aipBnj1ulO89MhihwCVk00HxMh7ilUnfXlg-5Yw3OBKU3LcoqilNQCs_bXw72E8SmN-8S3Fc_QKAjESwi7YVCTxxjC2_ClF2JrOK5R8elqiXLFfqYAjA5A3_uVDzbYo_TVlqU55MqKPYfNS4AdUcB6MMiTUFXsr32OvHkFeqfXuusXmicSe0-CuMMnULk4bOD1FjzuTHWUwu9LdYbUFEsPE-Xw_kPPNhXdtmVzxj_"/>
+<div class="absolute inset-0 bg-[#00E5FF]/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+</div>
+<p class="text-center font-bold text-white mb-1">Chrome</p>
+<p class="text-center text-[10px] font-label-caps text-slate-500 uppercase">Utility</p>
+</div>
+<!-- App Card 2: Spotify -->
+<div class="glass-card p-6 group cursor-pointer hover:border-[#00E5FF]/40 transition-all active:scale-[0.98]">
+<div class="relative w-16 h-16 mb-4 mx-auto bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<img alt="Spotify" class="w-10 h-10" data-alt="abstract circular logo with green wave patterns representing audio waves and music streaming" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnbm_EFKekKDbMJTbyinbUfdpGtxqE9mRkDei0XHp9OYJAAp3Z2aFbZYRe2SxOa3086JjCTnY0qnVntNe-MQFiSdY6YfJ3WIe-Qr_dsC2fEntpcdBLaqBdo1A9zEwMemSK0flqI8Szd8RQAw_BVKcoW9g49TDhqpWtSrbACQLDbAQ7dARvq8JnKHD770gjFtEQFz5sGe6HMFZFjZPuubvaypSq6M6RLyAymXSeocjodUGDN2ugNuzb9AN54C-KVOEMDGAkG71fcOn2"/>
+</div>
+<p class="text-center font-bold text-white mb-1">Spotify</p>
+<p class="text-center text-[10px] font-label-caps text-slate-500 uppercase">Entertainment</p>
+</div>
+<!-- App Card 3: Slack -->
+<div class="glass-card p-6 group cursor-pointer hover:border-[#00E5FF]/40 transition-all active:scale-[0.98]">
+<div class="relative w-16 h-16 mb-4 mx-auto bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<img alt="Slack" class="w-10 h-10" data-alt="geometric cross shape with vibrant cyan, yellow, pink and green accents representing productivity" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5iQYRXWH4Ht5wjZeUR2d5oCtLyIkB82dhXGwOueancvWkedLgtHsbYj1MTIOHV0W4LI3SDH5uYrZkHmljknPcYT4kcwh1OKQBc9h-Bv9e2_Q62_4tOq8-gfaPaUJEc5RvkiavVUESoyVwKx21VZqYwXZo7VpZCCDmBfLb7uCZkLd7MCbah6QAQG8klcbV1IUyQiVKWSpRX_E-3K4FMFeoQF6qKU5uKSOHRT4DbYf28G4vhAGSe9hmR7u_PwwXw1AEaue0L823RYgc"/>
+</div>
+<p class="text-center font-bold text-white mb-1">Slack</p>
+<p class="text-center text-[10px] font-label-caps text-slate-500 uppercase">Productivity</p>
+</div>
+<!-- App Card 4: Discord -->
+<div class="glass-card p-6 group cursor-pointer hover:border-[#00E5FF]/40 transition-all active:scale-[0.98]">
+<div class="relative w-16 h-16 mb-4 mx-auto bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<img alt="Discord" class="w-10 h-10" data-alt="stylized gaming headset silhouette in deep purple and white geometric shapes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJ2PgPydaCrcpabsJnmH7kAayCKb4Oz6qAMwCMPDN1r2M-KQG3A8f4F48dJUGqbwBDnqWHp6pTGBSEOJKe5hikWxaxCuNEOaOL-okwQF1afGKHbLkz_hUpZaNOhVbpubh07cwymjoAFe9-RoIRPazcncG3D2CBJxH2UO6IORrssmhJvC8Ol38dFbbN-QwNSb3tMgZ5VuctUN493kElY9U5aQZlSCK0dg76dzSklBjkiU5XRk0x0Xq_xh7bBf8BttI8x-NFVxdvzgle"/>
+</div>
+<p class="text-center font-bold text-white mb-1">Discord</p>
+<p class="text-center text-[10px] font-label-caps text-slate-500 uppercase">Communication</p>
+</div>
+<!-- App Card 5: Figma -->
+<div class="glass-card p-6 group cursor-pointer hover:border-[#00E5FF]/40 transition-all active:scale-[0.98]">
+<div class="relative w-16 h-16 mb-4 mx-auto bg-white/5 rounded-2xl flex items-center justify-center overflow-hidden">
+<img alt="Figma" class="w-10 h-10" data-alt="layered colorful rounded shapes representing design elements and creative layers" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqzatT-u4HlDAGjyqsohpB3L_ToXJmlmyQrPacJySDhWaWAl3K7_pYhaTNRSLrp5Q64yIaLSMk7tYzDiMR2nM_XLaQyAX-WoRjaXt79dk0yPBeOrgckZFlnn29WeC1f_9lUQSDQHluM8z5XEQxsFXguQHXK8HV07nlfwxquQiVgxzTs8PNBhL7kRgLIK7qf1TF-3F7GcvG9RqfV_BY9CVXlLtSOE-stYYhkFYeaW-W4a17dxKUFpSGflZomJfliqIJjy42AsPCU4rr"/>
+</div>
+<p class="text-center font-bold text-white mb-1">Figma</p>
+<p class="text-center text-[10px] font-label-caps text-slate-500 uppercase">Design</p>
+</div>
+</div>
+</section>
+<!-- Section: All Installed Apps -->
+<section>
+<div class="flex items-center justify-between mb-6">
+<h2 class="font-h2 text-h2 text-white">All Installed Apps</h2>
+<div class="h-px flex-1 mx-6 bg-white/10"></div>
+<div class="flex gap-2">
+<button class="p-2 text-slate-400 hover:text-white"><span class="material-symbols-outlined">grid_view</span></button>
+<button class="p-2 text-slate-600 hover:text-white"><span class="material-symbols-outlined">format_list_bulleted</span></button>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-6 gap-gutter">
+<!-- App Item Template x 12 -->
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<!-- Tooltip on Hover -->
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">
+                  ADD TO MOBILE
+                </div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">terminal</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">VS Code</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Development</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">ADD TO MOBILE</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">admob</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Photoshop</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Design</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">ADD TO MOBILE</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">cloud</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Drive</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Storage</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">ADD TO MOBILE</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">mail</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Outlook</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Communication</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">ADD TO MOBILE</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">video_call</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Zoom</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Utility</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+<div class="bg-[#00E5FF] text-[#001F24] text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap shadow-xl">ADD TO MOBILE</div>
+</div>
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">calendar_today</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Notion</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Productivity</p>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">mountain_steam</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Steam</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Gaming</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">draw</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Illustrator</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Design</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">description</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Word</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Office</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">table</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Excel</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Office</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">shield</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Antivirus</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">System</p>
+</div>
+</div>
+<div class="group relative bg-[#1B1F2C]/40 border border-white/5 rounded-2xl p-4 hover:bg-[#1B1F2C] hover:border-[#00E5FF]/20 transition-all cursor-pointer">
+<div class="flex flex-col items-center">
+<div class="w-12 h-12 mb-3 rounded-xl bg-white/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-400 group-hover:text-[#00E5FF] transition-colors">speed</span>
+</div>
+<h3 class="font-bold text-sm text-white truncate w-full text-center">Speedtest</h3>
+<p class="text-[9px] font-label-caps text-slate-500 uppercase">Utility</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Floating Quick Action for Launcher -->
+<button class="fixed bottom-margin right-margin primary-gradient text-white flex items-center gap-2 px-6 py-4 rounded-full font-bold shadow-2xl active-glow transition-all hover:scale-105 group">
+<span class="material-symbols-outlined group-hover:rotate-180 transition-transform duration-500">sync_alt</span>
+<span class="text-sm font-label-caps tracking-widest">SYNC ALL APPS</span>
+</button>
+</div>
+</main>
+</div>
+</body></html>

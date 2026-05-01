@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>NexLink</AssemblyName>
+    <RootNamespace>NexLink</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WebSocket server -->
+    <PackageReference Include="Fleck" Version="1.2.0" />
+
+    <!-- QR Code generation -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+
+    <!-- System.Drawing for screen capture -->
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+
+    <!-- JSON serialization -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- OpenCV for camera streaming -->
+    <PackageReference Include="OpenCvSharp4" Version="4.9.0.20240103" />
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.9.0.20240103" />
+
+    <!-- Windows Media Control (SMTC) — included via Windows SDK -->
+    <!-- NAudio for audio volume control -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    
+    <!-- System.Management for WMI (Battery/Brightness) -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
+    
+    <!-- ManagedNativeWifi for WiFi info -->
+    <PackageReference Include="ManagedNativeWifi" Version="2.6.0" />
+    <PackageReference Include="WebSocketSharp-netstandard" Version="1.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\**\*" />
+  </ItemGroup>
+
+</Project>

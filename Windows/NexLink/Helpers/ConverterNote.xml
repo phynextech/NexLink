@@ -1,0 +1,10 @@
+<!-- Register converters in App.xaml resources -->
+<!-- Add these inside Application.Resources in App.xaml -->
+<!--
+    xmlns:helpers="clr-namespace:LinkBridge.Helpers"
+
+    <helpers:BoolToAlignmentConverter  x:Key="BoolToAlignment"/>
+    <helpers:BoolToColorConverter      x:Key="BoolToColor"/>
+    <helpers:NonZeroToVisibilityConverter x:Key="NonZeroVisibility"/>
+    <helpers:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+-->

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NexLink - Clipboard Sync</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;family=Rajdhani:wght@500;600;700&amp;family=Nunito:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#cdbdff",
+                        "on-secondary-fixed-variant": "#4f00d0",
+                        "on-tertiary-fixed": "#171b28",
+                        "on-primary-container": "#00626e",
+                        "on-surface": "#d9e3f7",
+                        "surface-container-low": "#121c2a",
+                        "outline": "#849396",
+                        "error": "#ffb4ab",
+                        "outline-variant": "#3b494c",
+                        "tertiary-fixed-dim": "#c3c6d7",
+                        "on-surface-variant": "#bac9cc",
+                        "tertiary": "#eaecfe",
+                        "surface": "#091421",
+                        "surface-container": "#16202e",
+                        "secondary": "#cdbdff",
+                        "surface-container-highest": "#2b3544",
+                        "inverse-primary": "#006875",
+                        "primary": "#c3f5ff",
+                        "on-background": "#d9e3f7",
+                        "on-primary": "#00363d",
+                        "secondary-fixed": "#e8deff",
+                        "tertiary-container": "#cdd0e1",
+                        "surface-tint": "#00daf3",
+                        "primary-fixed-dim": "#00daf3",
+                        "on-error-container": "#ffdad6",
+                        "on-tertiary": "#2c303d",
+                        "inverse-surface": "#d9e3f7",
+                        "on-secondary-fixed": "#20005f",
+                        "on-primary-fixed": "#001f24",
+                        "on-secondary": "#370096",
+                        "primary-container": "#00e5ff",
+                        "primary-fixed": "#9cf0ff",
+                        "on-secondary-container": "#c0acff",
+                        "on-error": "#690005",
+                        "inverse-on-surface": "#273140",
+                        "on-tertiary-fixed-variant": "#434654",
+                        "surface-container-lowest": "#050f1c",
+                        "on-primary-fixed-variant": "#004f58",
+                        "surface-bright": "#303a49",
+                        "secondary-container": "#5203d5",
+                        "surface-container-high": "#212a39",
+                        "surface-dim": "#091421",
+                        "on-tertiary-container": "#555967",
+                        "background": "#091421",
+                        "surface-variant": "#2b3544",
+                        "tertiary-fixed": "#dfe2f3"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "8px",
+                        "xl": "64px",
+                        "gutter": "16px",
+                        "xs": "4px",
+                        "sm": "12px",
+                        "margin-safe": "24px",
+                        "lg": "40px",
+                        "md": "24px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Plus Jakarta Sans"],
+                        "h2": ["Space Grotesk"],
+                        "code-data": ["Space Grotesk"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "h1": ["Space Grotesk"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "rajdhani": ["Rajdhani"],
+                        "nunito": ["Nunito"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(18, 28, 42, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .neon-glow {
+            text-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+        }
+        .neon-shadow {
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+        }
+        .bg-mesh {
+            background: radial-gradient(circle at 50% 50%, rgba(0, 229, 255, 0.05) 0%, transparent 70%), #0A0E1A;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-mesh min-h-screen text-on-surface font-body-md overflow-x-hidden pb-32">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-50 bg-slate-950/60 backdrop-blur-xl border-b border-white/10 flex justify-between items-center w-full px-6 py-4">
+<div class="flex items-center gap-4">
+<button class="text-slate-400 active:scale-95 duration-200">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-rajdhani text-[18px] font-bold tracking-tight text-cyan-400 uppercase">Clipboard</h1>
+</div>
+<div class="flex items-center gap-3">
+<span class="text-xs font-bold text-cyan-400/80 uppercase tracking-widest">Auto-sync</span>
+<div class="w-10 h-5 bg-cyan-400/20 border border-cyan-400/30 rounded-full relative flex items-center px-0.5">
+<div class="w-4 h-4 bg-cyan-400 rounded-full neon-shadow ml-auto"></div>
+</div>
+</div>
+</header>
+<main class="px-6 py-8 space-y-6 max-w-lg mx-auto">
+<!-- Mobile Clipboard Card -->
+<section class="glass-card rounded-3xl p-5 space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-cyan-400" data-weight="fill">smartphone</span>
+<span class="text-label-sm uppercase tracking-wider text-slate-300">Mobile Clipboard</span>
+</div>
+<button class="flex items-center gap-1 text-[10px] font-bold text-cyan-400 border border-cyan-400/30 rounded-full px-3 py-1 bg-cyan-400/5 active:scale-95 transition-transform">
+                    Send to PC <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+<div class="bg-slate-950/80 rounded-2xl p-4 min-h-[100px] border border-white/5">
+<p class="font-nunito text-[14px] text-white leading-relaxed">
+                    Meeting notes from today's standup: Prioritize the Clipboard Sync UI. Finalize the glassmorphism parameters and ensure character counts are visible for large strings.
+                </p>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-slate-500 font-medium">89 chars</span>
+<span class="text-[10px] text-slate-500 italic">Updated 2m ago</span>
+</div>
+</section>
+<!-- Sync Indicator -->
+<div class="flex flex-col items-center justify-center py-2 space-y-2">
+<div class="flex flex-col items-center">
+<span class="material-symbols-outlined text-cyan-400 neon-glow">keyboard_double_arrow_up</span>
+<span class="material-symbols-outlined text-cyan-400 neon-glow -mt-4">keyboard_double_arrow_down</span>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+<span class="text-[10px] font-bold tracking-[0.2em] uppercase text-green-400">Auto-syncing</span>
+</div>
+</div>
+<!-- PC Clipboard Card -->
+<section class="glass-card rounded-3xl p-5 space-y-4">
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-cyan-400" data-weight="fill">monitor</span>
+<span class="text-label-sm uppercase tracking-wider text-slate-300">PC Clipboard</span>
+</div>
+<button class="flex items-center gap-1 text-[10px] font-bold text-cyan-400 border border-cyan-400/30 rounded-full px-3 py-1 bg-cyan-400/5 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[14px]">arrow_back</span> Copy to Mobile
+                </button>
+</div>
+<div class="bg-slate-950/80 rounded-2xl p-4 min-h-[80px] border border-white/5 opacity-80">
+<p class="font-nunito text-[14px] text-slate-400 italic">
+                    https://github.com/nexlink/core-v2-design-assets
+                </p>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-[10px] text-slate-500 font-medium">48 chars</span>
+<span class="text-[10px] text-slate-500 italic">Last synced 14:22</span>
+</div>
+</section>
+<!-- Sync History -->
+<section class="space-y-4 pt-4">
+<h3 class="text-label-sm uppercase tracking-[0.15em] text-cyan-400/60 font-bold px-1">Sync History</h3>
+<div class="space-y-3">
+<!-- History Item 1 -->
+<div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-2 border-l-cyan-400/50">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-cyan-400/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-cyan-400 text-[18px]">output</span>
+</div>
+<div>
+<p class="text-xs text-on-surface font-medium line-clamp-1">Project roadmap draft v1.0.docx</p>
+<p class="text-[10px] text-slate-500">To PC • 10:45 AM</p>
+</div>
+</div>
+<button class="text-slate-500 hover:text-cyan-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+<!-- History Item 2 -->
+<div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-2 border-l-purple-400/30">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-purple-400/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-purple-400 text-[18px]">input</span>
+</div>
+<div>
+<p class="text-xs text-on-surface font-medium line-clamp-1">#3E4F92 Hex Code</p>
+<p class="text-[10px] text-slate-500">From PC • 09:12 AM</p>
+</div>
+</div>
+<button class="text-slate-500 hover:text-cyan-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+<!-- History Item 3 -->
+<div class="glass-card rounded-2xl p-4 flex items-center justify-between border-l-2 border-l-cyan-400/50">
+<div class="flex items-center gap-4">
+<div class="w-8 h-8 rounded-full bg-cyan-400/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-cyan-400 text-[18px]">output</span>
+</div>
+<div>
+<p class="text-xs text-on-surface font-medium line-clamp-1">meeting-link.zoom.us/j/829...</p>
+<p class="text-[10px] text-slate-500">To PC • Yesterday</p>
+</div>
+</div>
+<button class="text-slate-500 hover:text-cyan-400 transition-colors">
+<span class="material-symbols-outlined text-[20px]">content_copy</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-2 bg-slate-950/40 backdrop-blur-2xl rounded-t-3xl border-t border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+<a class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 transition-all active:scale-90 duration-150 ease-out" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 transition-all active:scale-90 duration-150 ease-out" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase mt-1">Files</span>
+</a>
+<div class="flex flex-col items-center justify-center text-cyan-400 drop-shadow-[0_0_10px_rgba(0,229,255,0.5)] bg-cyan-400/10 rounded-2xl px-4 py-2 active:scale-90 duration-150 ease-out cursor-default">
+<span class="material-symbols-outlined">content_paste</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase mt-1">Sync</span>
+</div>
+<a class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 transition-all active:scale-90 duration-150 ease-out" href="#">
+<span class="material-symbols-outlined">apps</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase mt-1">Apps</span>
+</a>
+<a class="flex flex-col items-center justify-center text-slate-500 hover:text-slate-300 px-4 py-2 transition-all active:scale-90 duration-150 ease-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-['Space_Grotesk'] text-[10px] font-medium tracking-widest uppercase mt-1">Settings</span>
+</a>
+</nav>
+<!-- Background Decorative Gradients -->
+<div class="fixed top-1/4 -left-24 w-64 h-64 bg-cyan-500/10 blur-[100px] pointer-events-none -z-10"></div>
+<div class="fixed bottom-1/4 -right-24 w-80 h-80 bg-purple-500/10 blur-[120px] pointer-events-none -z-10"></div>
+</body></html>

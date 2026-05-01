@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NexLink | Welcome</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Rajdhani:wght@400;500;600;700&amp;family=Nunito:wght@400;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .mesh-gradient {
+            background-color: #0a0e1a;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 229, 255, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(82, 3, 213, 0.15) 0px, transparent 50%),
+                linear-gradient(135deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 100% 100%, 40px 40px;
+        }
+        .glass-card {
+            background: rgba(18, 25, 41, 0.6);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #00E5FF 0%, #5203D5 100%);
+        }
+        .primary-gradient:hover {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.4);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 229, 255, 0.2);
+            border-radius: 9999px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary": "#2f3131",
+                      "inverse-surface": "#dfe2f3",
+                      "tertiary": "#ececec",
+                      "on-primary-fixed-variant": "#004f58",
+                      "error": "#ffb4ab",
+                      "surface-container-highest": "#313442",
+                      "primary-fixed": "#9cf0ff",
+                      "on-error-container": "#ffdad6",
+                      "on-secondary-container": "#c0acff",
+                      "primary-container": "#00e5ff",
+                      "tertiary-fixed-dim": "#c6c6c7",
+                      "surface-container-lowest": "#0a0e1a",
+                      "on-tertiary-fixed-variant": "#454747",
+                      "surface-container-low": "#171b28",
+                      "tertiary-fixed": "#e2e2e2",
+                      "primary-fixed-dim": "#00daf3",
+                      "surface-container-high": "#262a37",
+                      "surface": "#0f131f",
+                      "surface-container": "#1b1f2c",
+                      "on-surface-variant": "#bac9cc",
+                      "surface-bright": "#353946",
+                      "outline-variant": "#3b494c",
+                      "surface-tint": "#00daf3",
+                      "surface-dim": "#0f131f",
+                      "background": "#0f131f",
+                      "on-error": "#690005",
+                      "secondary-fixed": "#e8deff",
+                      "on-primary-fixed": "#001f24",
+                      "inverse-primary": "#006875",
+                      "secondary": "#cdbdff",
+                      "primary": "#c3f5ff",
+                      "on-tertiary-container": "#575959",
+                      "on-secondary": "#370096",
+                      "error-container": "#93000a",
+                      "surface-variant": "#313442",
+                      "tertiary-container": "#d0d0d0",
+                      "on-tertiary-fixed": "#1a1c1c",
+                      "on-surface": "#dfe2f3",
+                      "secondary-fixed-dim": "#cdbdff",
+                      "on-secondary-fixed": "#20005f",
+                      "on-background": "#dfe2f3",
+                      "outline": "#849396",
+                      "on-secondary-fixed-variant": "#4f00d0",
+                      "secondary-container": "#5203d5",
+                      "on-primary-container": "#00626e",
+                      "on-primary": "#00363d",
+                      "inverse-on-surface": "#2c303d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xl": "64px",
+                      "md": "24px",
+                      "gutter": "16px",
+                      "xs": "8px",
+                      "base": "4px",
+                      "sm": "16px",
+                      "lg": "40px",
+                      "margin": "32px"
+              },
+              "fontFamily": {
+                      "body-md": ["Nunito"],
+                      "body-lg": ["Nunito"],
+                      "label-caps": ["Rajdhani"],
+                      "h2": ["Rajdhani"],
+                      "h3": ["Rajdhani"],
+                      "h1": ["Rajdhani"],
+                      "data-mono": ["JetBrains Mono"]
+              },
+              "fontSize": {
+                      "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                      "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "600"}],
+                      "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.1em", "fontWeight": "700"}],
+                      "h2": ["28px", {"lineHeight": "1.3", "fontWeight": "600"}],
+                      "h3": ["20px", {"lineHeight": "1.4", "fontWeight": "600"}],
+                      "h1": ["40px", {"lineHeight": "1.2", "letterSpacing": "0.02em", "fontWeight": "700"}],
+                      "data-mono": ["14px", {"lineHeight": "1.4", "fontWeight": "500"}]
+              }
+            },
+          },
+        }
+      </script>
+</head>
+<body class="bg-surface-container-lowest text-on-background mesh-gradient min-h-screen flex items-center justify-center p-xl font-body-md selection:bg-primary-container/30">
+<!-- Main Content Area (No Navigation Shell per Transactional/Onboarding Rule) -->
+<main class="w-full max-w-[640px] flex flex-col items-center">
+<!-- Step Indicator -->
+<div class="flex items-center gap-xs mb-lg">
+<div class="h-1 w-12 rounded-full bg-primary-container"></div>
+<div class="h-1 w-12 rounded-full bg-surface-container-highest"></div>
+<div class="h-1 w-12 rounded-full bg-surface-container-highest"></div>
+</div>
+<!-- Onboarding Card -->
+<div class="glass-card w-full p-xl rounded-xl flex flex-col items-center text-center">
+<!-- Product Identity Anchor (Minimal) -->
+<div class="flex items-center gap-xs mb-md">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">sync_alt</span>
+<span class="font-['Space_Grotesk'] text-lg font-bold text-white uppercase tracking-widest">NexLink</span>
+</div>
+<!-- Illustration Container -->
+<div class="relative w-full aspect-video mb-lg rounded-lg overflow-hidden group">
+<img alt="Ecosystem illustration" class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" data-alt="Futuristic neon workspace with a high-end laptop and smartphone connected by glowing blue data streams in a dark studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDyDagAHmOmLO6byjrvYftrr044U62hbIu_gJPrpk3xzYoOEbZHi7wycoEX0eVRlOv7QoAmfADoLzwuIM2dGiUhwuKyJxu53hhbEQ0Gd8rJ4cMumqR44D5WJJbLLx8G1Lq9FvNsmcgw3qjouP7VQPhp7qFG2nc8yehtLLbQzT_mirx4Kp4CqoXLVTHcZyRaFF4V3f2B5poD8AhPynasY13o4FJ88v6MSlGurIn8bkrzdkSvQfG7W4NXDj4iMMczfYW-jO1J-ZcwH6VN"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-container via-transparent to-transparent"></div>
+</div>
+<!-- Text Content -->
+<h1 class="font-h1 text-h1 text-white mb-xs">Welcome to NexLink</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-[480px]">
+                Connect your Android phone and Windows PC seamlessly for a unified digital experience.
+            </p>
+<!-- Feature List -->
+<div class="w-full grid grid-cols-1 md:grid-cols-2 gap-sm text-left mb-xl">
+<div class="flex items-start gap-xs p-sm bg-white/5 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="font-label-caps text-label-caps text-primary-container mb-1">REAL-TIME SYNC</p>
+<p class="text-xs text-on-surface-variant">Instant notification mirroring and clipboards.</p>
+</div>
+</div>
+<div class="flex items-start gap-xs p-sm bg-white/5 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="font-label-caps text-label-caps text-primary-container mb-1">FILE TRANSFER</p>
+<p class="text-xs text-on-surface-variant">Drag and drop files between your devices wirelessly.</p>
+</div>
+</div>
+<div class="flex items-start gap-xs p-sm bg-white/5 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="font-label-caps text-label-caps text-primary-container mb-1">REMOTE INPUT</p>
+<p class="text-xs text-on-surface-variant">Control your PC using your mobile touchscreen.</p>
+</div>
+</div>
+<div class="flex items-start gap-xs p-sm bg-white/5 rounded-lg border border-white/5">
+<span class="material-symbols-outlined text-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<div>
+<p class="font-label-caps text-label-caps text-primary-container mb-1">APP MIRRORING</p>
+<p class="text-xs text-on-surface-variant">Run mobile apps directly on your desktop.</p>
+</div>
+</div>
+</div>
+<!-- Primary Action -->
+<button class="primary-gradient w-full py-md rounded-lg font-h3 text-white transition-all flex items-center justify-center gap-xs">
+                Get Started
+                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<!-- Secondary Info -->
+<div class="mt-md flex items-center gap-xs justify-center">
+<span class="font-data-mono text-data-mono text-slate-500 uppercase">Version 2.4.0-Stable</span>
+<span class="h-1 w-1 rounded-full bg-slate-700"></span>
+<span class="font-body-md text-xs text-slate-500">System Ready</span>
+</div>
+</div>
+<!-- Footer / Legal Info -->
+<footer class="mt-lg flex gap-md">
+<a class="text-xs text-slate-600 hover:text-primary-container transition-colors" href="#">Privacy Policy</a>
+<a class="text-xs text-slate-600 hover:text-primary-container transition-colors" href="#">Terms of Service</a>
+<a class="text-xs text-slate-600 hover:text-primary-container transition-colors" href="#">Help Center</a>
+</footer>
+</main>
+</body></html>
