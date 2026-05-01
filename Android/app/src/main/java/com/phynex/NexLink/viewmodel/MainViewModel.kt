@@ -1,22 +1,24 @@
 package com.phynex.NexLink.viewmodel
 
+import android.app.Application
 import android.content.Context
 import android.os.Environment
 import android.util.Base64
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.JsonObject
 import com.phynex.NexLink.model.*
 import com.phynex.NexLink.service.LinkBridgeNotificationService
 import com.phynex.NexLink.service.SmsReceiver
 import com.phynex.NexLink.websocket.LinkBridgeWebSocket
+import com.phynex.NexLink.service.PairingManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
-class MainViewModel : ViewModel() {
+class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         // Shared instance accessible by foreground service for reconnect triggering
         @Volatile var instance: MainViewModel? = null
@@ -32,6 +34,8 @@ class MainViewModel : ViewModel() {
 
     // Connection mode: "Local WiFi", "Cloud Relay", "Disconnected"
     val connectionMode: StateFlow<String> = webSocket.connectionMode
+
+    private val pairingManager = PairingManager(application)
 
     // Device info from QR
     private val _connectedDevice = MutableStateFlow<DeviceInfo?>(null)
@@ -118,6 +122,18 @@ class MainViewModel : ViewModel() {
         setupWebSocketListeners()
         setupNotificationForwarding()
         setupSmsForwarding()
+        
+        // Auto-connect if we have a saved pairing
+        if (pairingManager.hasSavedPairing()) {
+            val pairId = pairingManager.getSavedPairId() ?: ""
+            val ip = pairingManager.getSavedIp() ?: ""
+            val port = pairingManager.getSavedPort()
+            val relayUrl = pairingManager.getSavedRelayUrl() ?: ""
+            val token = pairingManager.getSavedToken() ?: ""
+            
+            val savedDevice = DeviceInfo(ip, port, "Paired PC", token, pairId, relayUrl)
+            connectToPC(savedDevice)
+        }
     }
 
 
@@ -326,6 +342,16 @@ class MainViewModel : ViewModel() {
     fun connectToPC(deviceInfo: DeviceInfo) {
         _connectedDevice.value = deviceInfo
         _connectionState.value = ConnectionState.CONNECTING
+        
+        // Save this pairing for future auto-connects
+        pairingManager.savePairing(
+            pairId = deviceInfo.pairId,
+            ip = deviceInfo.ip,
+            port = deviceInfo.port,
+            relayUrl = deviceInfo.relayUrl,
+            token = deviceInfo.sessionToken
+        )
+        
         // Pass pairId and relayUrl so WebSocket can fall back to relay
         webSocket.connect(
             ip = deviceInfo.ip,
@@ -344,6 +370,13 @@ class MainViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    fun unpairAndDisconnect() {
+        pairingManager.clearPairing()
+        webSocket.disconnect()
+        _connectedDevice.value = null
+        _connectionState.value = ConnectionState.DISCONNECTED
     }
 
     fun requestInitialData() {
