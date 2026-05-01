@@ -174,8 +174,10 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                                                         val device = DeviceInfo(
                                                                             ip = json.getString("ip"),
                                                                             port = json.getInt("port"),
-                                                                            deviceName = json.getString("deviceName"),
-                                                                            sessionToken = json.getString("sessionToken")
+                                                                            deviceName = json.optString("deviceName", "PC"),
+                                                                            sessionToken = json.optString("token", json.optString("sessionToken", "")),
+                                                                            pairId = json.optString("pairId", ""),
+                                                                            relayUrl = json.optString("relayUrl", "")
                                                                         )
                                                                         scanned = true
                                                                         onScanned(device)

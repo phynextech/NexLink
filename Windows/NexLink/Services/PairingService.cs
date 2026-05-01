@@ -62,8 +62,10 @@ namespace NexLink.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"[Pairing] CreatePair failed: {ex.Message}");
-                // Fallback: generate local pair id (relay-less, LAN only)
-                return "";
+                // Fallback: generate local pair id so relay can still work when server wakes up
+                var fallbackId = Guid.NewGuid().ToString();
+                SavePairId(fallbackId);
+                return fallbackId;
             }
         }
 

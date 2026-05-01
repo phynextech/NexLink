@@ -76,8 +76,16 @@ fun LinkBridgeApp() {
     ) {
         composable(Screen.SPLASH.route) {
             SplashScreen(onSplashFinished = {
-                navController.navigate(Screen.QR_SCANNER.route) {
-                    popUpTo(Screen.SPLASH.route) { inclusive = true }
+                // If we already have a saved pairId, go straight to Home
+                // The MainViewModel's init block handles the actual connection.
+                if (viewModel.isConnected.value || viewModel.connectedDevice.value != null) {
+                    navController.navigate(Screen.HOME.route) {
+                        popUpTo(Screen.SPLASH.route) { inclusive = true }
+                    }
+                } else {
+                    navController.navigate(Screen.QR_SCANNER.route) {
+                        popUpTo(Screen.SPLASH.route) { inclusive = true }
+                    }
                 }
             })
         }
