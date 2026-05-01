@@ -56,6 +56,23 @@ namespace NexLink.Services
             catch { }
         }
 
+        public static int GetBrightness()
+        {
+            try
+            {
+                var scope = new System.Management.ManagementScope(@"\\.\root\WMI");
+                var query = new System.Management.SelectQuery("WmiMonitorBrightness");
+                using var searcher = new System.Management.ManagementObjectSearcher(scope, query);
+                foreach (System.Management.ManagementObject obj in searcher.Get())
+                {
+                    var level = obj["CurrentBrightness"];
+                    if (level != null) return Convert.ToInt32(level);
+                }
+            }
+            catch { }
+            return 50;
+        }
+
         // ─── WiFi Info ───
         public static (string ssid, int strength) GetWifiInfo()
         {

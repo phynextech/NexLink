@@ -309,6 +309,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _cameraFrameBase64.value = json.get("data")?.asString
         }
 
+        webSocket.addListener("volume") { json ->
+            _volume.value = json.get("level")?.asInt ?: 50
+        }
+
+        webSocket.addListener("brightness") { json ->
+            _brightness.value = json.get("level")?.asInt ?: 50
+        }
+
+        webSocket.addListener("relay_peer_online") {
+            requestInitialData()
+        }
+
         webSocket.addListener("error") { json ->
             _toastMessage.value = json.get("message")?.asString ?: "Unknown error"
         }

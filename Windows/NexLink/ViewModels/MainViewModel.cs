@@ -222,6 +222,12 @@ namespace NexLink.ViewModels
             WsService.Send(new { type = "wifi_info", ssid = wifiSsid, strength = 80 });
             WsService.Send(new { type = "battery_info", level = battLevel, isCharging = battCharging });
             WsService.Send(new { type = "bt_info", devices = SystemInfoService.GetBluetoothDevices() });
+            
+            var vol = SystemInfoService.GetVolume();
+            WsService.Send(new { type = "volume", level = vol });
+            
+            var bright = SystemInfoService.GetBrightness();
+            WsService.Send(new { type = "brightness", level = bright });
         }
 
         private void SendWallpaper()

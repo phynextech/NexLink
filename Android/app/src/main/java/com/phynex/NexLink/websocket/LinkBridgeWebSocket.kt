@@ -193,6 +193,9 @@ class LinkBridgeWebSocket {
                 }
                 "relay_peer_online" -> {
                     Log.d(TAG, "Relay: PC came online")
+                    sendHandshake(ws)
+                    _lastMessage.value = json
+                    listeners[type]?.invoke(json)
                     return
                 }
                 "relay_peer_offline" -> {
