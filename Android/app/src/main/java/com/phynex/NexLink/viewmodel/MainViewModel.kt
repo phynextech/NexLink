@@ -29,11 +29,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Connection State
     val isConnected: StateFlow<Boolean> = webSocket.isConnected
+    val connectionMode: StateFlow<String> = webSocket.connectionMode
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState
-
-    // Connection mode: "Local WiFi", "Cloud Relay", "Disconnected"
-    val connectionMode: StateFlow<String> = webSocket.connectionMode
 
     private val pairingManager = PairingManager(application)
 

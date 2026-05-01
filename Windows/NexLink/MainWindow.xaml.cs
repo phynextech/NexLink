@@ -74,19 +74,17 @@ namespace NexLink
 
                 _vm.WsService.PhoneDisconnected += () =>
                 {
-                    // Wait 8 seconds before showing QR - allows Android to auto-reconnect silently
+                    // Wait 8 seconds to allow silent auto-reconnect
                     Task.Delay(8000).ContinueWith(_ =>
                     {
                         if (!_vm.WsService.IsPhoneConnected)
                         {
                             Dispatcher.Invoke(() =>
                             {
-                                DisconnectedOverlay.Visibility = Visibility.Visible;
-                                ConnectedDashboard.Visibility = Visibility.Collapsed;
-                                PhoneInfoPanel.Visibility = Visibility.Collapsed;
+                                // Stay on the dashboard, just update status
                                 SetStatusConnected(false);
-                                StatusBar.Text = "Phone disconnected — waiting...";
-                                GenerateQR();
+                                StatusBar.Text = "Mobile app disconnected";
+                                PhoneNameLabel.Text = "Offline";
                             });
                         }
                     });

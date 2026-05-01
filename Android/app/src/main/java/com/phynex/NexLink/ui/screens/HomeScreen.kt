@@ -94,6 +94,8 @@ fun HomeScreen(
                         color = primary,
                         fontWeight = FontWeight.Bold
                     )
+                    val connectionMode by viewModel.connectionMode.collectAsState()
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             Modifier
@@ -103,7 +105,7 @@ fun HomeScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            if (isConnected) "CONNECTED" else "DISCONNECTED",
+                            if (isConnected) "CONNECTED • $connectionMode" else connectionMode.uppercase(),
                             style = MaterialTheme.typography.labelSmall,
                             color = outline
                         )
