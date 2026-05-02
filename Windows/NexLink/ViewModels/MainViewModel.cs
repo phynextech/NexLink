@@ -139,12 +139,7 @@ namespace NexLink.ViewModels
                     // Send back system info immediately on handshake
                     Task.Run(async () => { SendSystemInfo(); await System.Threading.Tasks.Task.Delay(500); SendAppList(); SendWallpaper(); });
                     break;
-                case "request_info":
-                    SendSystemInfo();
-                    break;
-                case "get_wallpaper":
-                    SendWallpaper();
-                    break;
+
                 case "pong":
                     break; // ignore heartbeat responses
                 case "lock_pc":

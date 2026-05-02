@@ -60,9 +60,8 @@ namespace NexLink.Services
             _localServer.KeepClean = false;
             _localServer.WaitTime = TimeSpan.FromSeconds(60);
 
-            _localServer.AddWebSocketService<LinkBridgeBehavior>("/", () =>
+            _localServer.AddWebSocketService<LinkBridgeBehavior>("/", b =>
             {
-                var b = new LinkBridgeBehavior();
                 b.MessageReceived += OnMessage;
                 b.Connected += () =>
                 {
@@ -80,7 +79,6 @@ namespace NexLink.Services
                     StopHeartbeat();
                     PhoneDisconnected?.Invoke();
                 };
-                return b;
             });
             _localServer.Start();
         }

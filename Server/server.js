@@ -61,6 +61,7 @@ app.use(express.json());
 app.use(require('cors')());
 
 // Health check – Render.com / UptimeRobot ping this to keep server alive
+app.get('/', (_, res) => res.json({ status: 'ok', service: 'NexLink Cloud Relay' }));
 app.get('/health', (_, res) => res.json({ status: 'ok', rooms: rooms.size, ts: Date.now() }));
 
 // ── Pairing API ──

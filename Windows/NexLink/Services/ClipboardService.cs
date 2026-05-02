@@ -10,22 +10,7 @@ namespace NexLink.Services
 {
     public class ClipboardService : IDisposable
     {
-        private readonly IntPtr _hwnd;
-        private IntPtr _nextClipboardViewer;
-        private bool _disposed;
-
         public event Action<string>? ClipboardChanged;
-
-        // P/Invoke for clipboard chain
-        [DllImport("User32.dll")]
-        static extern IntPtr SetClipboardViewer(IntPtr hWndNewViewer);
-        [DllImport("User32.dll", CharSet = CharSet.Auto)]
-        static extern bool ChangeClipboardChain(IntPtr hWndRemove, IntPtr hWndNewNext);
-        [DllImport("user32.dll", CharSet = CharSet.Auto)]
-        static extern IntPtr SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
-
-        const int WM_DRAWCLIPBOARD = 0x0308;
-        const int WM_CHANGECBCHAIN = 0x030D;
 
         // Use a hidden form window for clipboard notification
         private ClipboardForm? _form;
@@ -67,7 +52,6 @@ namespace NexLink.Services
 
         public void Dispose()
         {
-            _disposed = true;
             _form?.Invoke((Action)(() => System.Windows.Forms.Application.ExitThread()));
         }
 
