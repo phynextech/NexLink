@@ -150,6 +150,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun disconnect() {
+        webSocket.disconnect()
+        _connectedDevice.value = null
+        _connectionState.value = ConnectionState.DISCONNECTED
+    }
+
+    fun clearSavedPairing() {
+        pairingManager.clearPairing()
+    }
+
     private fun observeConnection() {
         viewModelScope.launch {
             webSocket.isConnected.collect { connected ->
