@@ -49,7 +49,10 @@ namespace NexLink.Services
         public event Action<JObject>? MessageReceived;
         public event Action? PhoneConnected;
         public event Action? PhoneDisconnected;
-        public bool IsPhoneConnected { get; private set; }
+        
+        private bool _isRelayPeerOnline = false;
+        public bool IsPhoneConnected => (_activeBehavior?.State == WebSocketState.Open) || _isRelayPeerOnline;
+        
         public bool IsRelayMode => _isRelayMode;
         public string CurrentPairId => _pairId;
 
@@ -65,7 +68,7 @@ namespace NexLink.Services
                 b.MessageReceived += OnMessage;
                 b.Connected += () =>
                 {
-                    lock (_lock) { _activeBehavior = b; IsPhoneConnected = true; }
+                    lock (_lock) { _activeBehavior = b; }
                     ResetSendQueue();
                     PhoneConnected?.Invoke();
                     StartHeartbeat();
@@ -74,10 +77,10 @@ namespace NexLink.Services
                 {
                     lock (_lock)
                     {
-                        if (_activeBehavior == b) { _activeBehavior = null; IsPhoneConnected = false; }
+                        if (_activeBehavior == b) { _activeBehavior = null; }
                     }
                     StopHeartbeat();
-                    PhoneDisconnected?.Invoke();
+                    if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
                 };
             });
             _localServer.Start();
@@ -125,10 +128,9 @@ namespace NexLink.Services
 
                     if (type == "relay_peer_online")
                     {
-                        // Android connected to relay
-                        if (!IsPhoneConnected)
+                        if (!_isRelayPeerOnline)
                         {
-                            IsPhoneConnected = true;
+                            _isRelayPeerOnline = true;
                             PhoneConnected?.Invoke();
                         }
                         return;
@@ -136,11 +138,11 @@ namespace NexLink.Services
 
                     if (type == "relay_peer_offline")
                     {
-                        if (IsPhoneConnected)
+                        if (_isRelayPeerOnline)
                         {
-                            IsPhoneConnected = false;
+                            _isRelayPeerOnline = false;
                             StopHeartbeat();
-                            PhoneDisconnected?.Invoke();
+                            if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
                         }
                         return;
                     }
@@ -153,9 +155,9 @@ namespace NexLink.Services
             _relayClient.OnClose += (_, e) =>
             {
                 Console.WriteLine($"[Relay] Connection closed: {e.Reason}");
-                IsPhoneConnected = false;
+                _isRelayPeerOnline = false;
                 StopHeartbeat();
-                PhoneDisconnected?.Invoke();
+                if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
 
                 // Auto-reconnect with exponential backoff
                 if (!token.IsCancellationRequested)
@@ -195,18 +197,17 @@ namespace NexLink.Services
                     {
                         try
                         {
-                            if (_isRelayMode)
+                            // Send via relay client if available
+                            if (_relayClient?.ReadyState == WebSocketState.Open)
                             {
-                                // Send via relay client
-                                if (_relayClient?.ReadyState == WebSocketState.Open)
-                                    _relayClient.Send(msg);
+                                _relayClient.Send(msg);
                             }
-                            else
-                            {
-                                LinkBridgeBehavior? beh;
-                                lock (_lock) { beh = _activeBehavior; }
-                                beh?.SendMessage(msg);
-                            }
+                            
+                            // Send via local client if available
+                            LinkBridgeBehavior? beh;
+                            lock (_lock) { beh = _activeBehavior; }
+                            beh?.SendMessage(msg);
+
                             await Task.Delay(20, token);
                         }
                         catch { }
