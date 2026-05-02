@@ -20,8 +20,8 @@ app.use(express.json());
 app.use(cors());
 
 // Health Check Endpoints
-app.get('/', (_, res) => res.json({ status: 'ok', service: 'NexLink Relay v2 Modular', ts: Date.now() }));
-app.get('/health', (_, res) => res.json({ status: 'ok', rooms: rooms.size, ts: Date.now() }));
+app.get('/', (_, res) => res.json({ status: 'ok', service: 'NexLink Relay v2 Modular', version: '2.1.0', ts: Date.now() }));
+app.get('/health', (_, res) => res.json({ status: 'ok', version: '2.1.0', rooms: rooms.size, ts: Date.now() }));
 
 // Routes
 app.use('/pair', deviceRoutes);
