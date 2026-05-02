@@ -108,14 +108,7 @@ fun LinkBridgeApp() {
                 onNavigateToAppLauncher = { navController.navigate(Screen.APP_LAUNCHER.route) },
                 onNavigateToClipboard = { navController.navigate(Screen.CLIPBOARD.route) },
                 onNavigateToCameraScreen = { navController.navigate(Screen.CAMERA_SCREEN.route) },
-                onNavigateToFileBrowser = { navController.navigate(Screen.FILE_BROWSER.route) },
-                onUnpair = {
-                    viewModel.disconnect()
-                    viewModel.clearSavedPairing()
-                    navController.navigate(Screen.QR_SCANNER.route) {
-                        popUpTo(Screen.HOME.route) { inclusive = true }
-                    }
-                }
+                onNavigateToFileBrowser = { navController.navigate(Screen.FILE_BROWSER.route) }
             )
         }
 

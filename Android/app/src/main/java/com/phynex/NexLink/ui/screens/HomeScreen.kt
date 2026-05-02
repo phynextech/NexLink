@@ -27,8 +27,7 @@ fun HomeScreen(
     onNavigateToAppLauncher: () -> Unit,
     onNavigateToClipboard: () -> Unit,
     onNavigateToCameraScreen: () -> Unit,
-    onNavigateToFileBrowser: () -> Unit,
-    onUnpair: () -> Unit
+    onNavigateToFileBrowser: () -> Unit
 ) {
     val isConnected by viewModel.isConnected.collectAsState()
     val deviceInfo by viewModel.connectedDevice.collectAsState()
@@ -111,19 +110,6 @@ fun HomeScreen(
                             color = outline
                         )
                     }
-                }
-                
-                Spacer(Modifier.height(16.dp))
-                
-                Button(
-                    onClick = onUnpair,
-                    colors = ButtonDefaults.buttonColors(containerColor = RedDisconnected.copy(alpha = 0.1f), contentColor = RedDisconnected),
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.LinkOff, contentDescription = "Unpair")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Unpair & Reconnect")
                 }
 
                 Spacer(Modifier.height(24.dp))

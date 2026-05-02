@@ -27,7 +27,8 @@ namespace NexLink.Services
     /// </summary>
     public class WebSocketService
     {
-        public const string RelayServerUrl = "wss://nexlink-khhe.onrender.com/relay";
+        // ─── Relay Server URL ─────────────────────────────────────────────────
+        public const string RelayServerUrl = "wss://nexlink-relay.onrender.com/relay";
 
         private WebSocketServer? _localServer;
         private LinkBridgeBehavior? _activeBehavior;

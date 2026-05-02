@@ -146,18 +146,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val device = _connectedDevice.value ?: return
         if (!webSocket.isConnected.value) {
             Log.d(TAG, "Auto-reconnecting to ${device.ip}:${device.port}")
-            webSocket.connect(device.ip, device.port, device.sessionToken)
+            webSocket.connect(
+                ip = device.ip, 
+                port = device.port, 
+                token = device.sessionToken, 
+                pair = device.pairId, 
+                relay = device.relayUrl
+            )
         }
-    }
-
-    fun disconnect() {
-        webSocket.disconnect()
-        _connectedDevice.value = null
-        _connectionState.value = ConnectionState.DISCONNECTED
-    }
-
-    fun clearSavedPairing() {
-        pairingManager.clearPairing()
     }
 
     private fun observeConnection() {
