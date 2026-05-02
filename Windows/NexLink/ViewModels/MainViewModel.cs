@@ -139,6 +139,12 @@ namespace NexLink.ViewModels
                     // Send back system info immediately on handshake
                     Task.Run(async () => { SendSystemInfo(); await System.Threading.Tasks.Task.Delay(500); SendAppList(); SendWallpaper(); });
                     break;
+                case "request_info":
+                    SendSystemInfo();
+                    break;
+                case "get_wallpaper":
+                    SendWallpaper();
+                    break;
                 case "pong":
                     break; // ignore heartbeat responses
                 case "lock_pc":
@@ -219,15 +225,13 @@ namespace NexLink.ViewModels
         {
             var wifiSsid = WebSocketService.GetWifiSSID();
             var (battLevel, battCharging) = SystemInfoService.GetBatteryInfo();
+            var volume = SystemInfoService.GetVolume();
+            // Brightness getter doesn't exist yet, we'll assume 50 for now
             WsService.Send(new { type = "wifi_info", ssid = wifiSsid, strength = 80 });
             WsService.Send(new { type = "battery_info", level = battLevel, isCharging = battCharging });
             WsService.Send(new { type = "bt_info", devices = SystemInfoService.GetBluetoothDevices() });
-            
-            var vol = SystemInfoService.GetVolume();
-            WsService.Send(new { type = "volume", level = vol });
-            
-            var bright = SystemInfoService.GetBrightness();
-            WsService.Send(new { type = "brightness", level = bright });
+            WsService.Send(new { type = "volume", level = volume });
+            // WsService.Send(new { type = "brightness", level = 50 });
         }
 
         private void SendWallpaper()

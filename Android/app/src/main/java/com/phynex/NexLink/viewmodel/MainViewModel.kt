@@ -190,6 +190,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _wallpaperBase64.value = json.get("data")?.asString
         }
 
+        webSocket.addListener("volume") { json ->
+            val level = json.get("level")?.asInt
+            if (level != null) _volume.value = level
+        }
+
+        webSocket.addListener("brightness") { json ->
+            val level = json.get("level")?.asInt
+            if (level != null) _brightness.value = level
+        }
+
         webSocket.addListener("now_playing") { json ->
             _nowPlaying.value = NowPlaying(
                 title = json.get("title")?.asString ?: "Unknown",
@@ -307,18 +317,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         webSocket.addListener("camera_frame") { json ->
             _cameraFrameBase64.value = json.get("data")?.asString
-        }
-
-        webSocket.addListener("volume") { json ->
-            _volume.value = json.get("level")?.asInt ?: 50
-        }
-
-        webSocket.addListener("brightness") { json ->
-            _brightness.value = json.get("level")?.asInt ?: 50
-        }
-
-        webSocket.addListener("relay_peer_online") {
-            requestInitialData()
         }
 
         webSocket.addListener("error") { json ->
