@@ -1,18 +1,19 @@
 package com.phynex.NexLink.viewmodel
 
 import android.app.Application
-import android.content.Context
 import android.os.Environment
 import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.gson.JsonObject
 import com.phynex.NexLink.model.*
 import com.phynex.NexLink.service.LinkBridgeNotificationService
 import com.phynex.NexLink.service.SmsReceiver
-import com.phynex.NexLink.websocket.LinkBridgeWebSocket
 import com.phynex.NexLink.service.PairingManager
+import com.phynex.NexLink.websocket.NexLinkSocketClient
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -20,26 +21,43 @@ import java.io.FileOutputStream
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
-        // Shared instance accessible by foreground service for reconnect triggering
         @Volatile var instance: MainViewModel? = null
     }
 
     private val TAG = "MainViewModel"
-    val webSocket = LinkBridgeWebSocket()
+
+    // ── Socket client ──────────────────────────────────────────────────────
+    val socketClient = NexLinkSocketClient()
+
+    // Expose as webSocket for backwards compat with screens that reference it
+    val webSocket get() = socketClient
 
     // Connection State
-    val isConnected: StateFlow<Boolean> = webSocket.isConnected
-    val connectionMode: StateFlow<String> = webSocket.connectionMode
+    val isConnected: StateFlow<Boolean> = socketClient.isConnected
+    val connectionMode: StateFlow<String> = socketClient.connectionMode
+
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState
 
+    // ── Firebase Auth ──────────────────────────────────────────────────────
+    private val auth = FirebaseAuth.getInstance()
+    private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
+    val currentUser: StateFlow<FirebaseUser?> = _currentUser
+
+    private val _isSignedIn = MutableStateFlow(auth.currentUser != null)
+    val isSignedIn: StateFlow<Boolean> = _isSignedIn
+
+    // ── Pairing ────────────────────────────────────────────────────────────
     private val pairingManager = PairingManager(application)
 
-    // Device info from QR
     private val _connectedDevice = MutableStateFlow<DeviceInfo?>(null)
     val connectedDevice: StateFlow<DeviceInfo?> = _connectedDevice
 
-    // PC info
+    // ── USB control ────────────────────────────────────────────────────────
+    private val _isUsbMode = MutableStateFlow(false)
+    val isUsbMode: StateFlow<Boolean> = _isUsbMode
+
+    // ── PC info state ──────────────────────────────────────────────────────
     private val _wifiInfo = MutableStateFlow<WifiInfo?>(null)
     val wifiInfo: StateFlow<WifiInfo?> = _wifiInfo
 
@@ -52,7 +70,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _wallpaperBase64 = MutableStateFlow<String?>(null)
     val wallpaperBase64: StateFlow<String?> = _wallpaperBase64
 
-    // Music
     private val _nowPlaying = MutableStateFlow<NowPlaying?>(null)
     val nowPlaying: StateFlow<NowPlaying?> = _nowPlaying
 
@@ -62,14 +79,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _brightness = MutableStateFlow(50)
     val brightness: StateFlow<Int> = _brightness
 
-    // Apps
     private val _appList = MutableStateFlow<List<AppItem>>(emptyList())
     val appList: StateFlow<List<AppItem>> = _appList
 
     private val _pinnedApps = MutableStateFlow<List<AppItem>>(emptyList())
     val pinnedApps: StateFlow<List<AppItem>> = _pinnedApps
 
-    // Files
     private val _currentPath = MutableStateFlow("root")
     val currentPath: StateFlow<String> = _currentPath
 
@@ -79,22 +94,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _fileTransferProgress = MutableStateFlow<Float?>(null)
     val fileTransferProgress: StateFlow<Float?> = _fileTransferProgress
 
-    // Clipboard
     private val _clipboardItems = MutableStateFlow<List<ClipboardItem>>(emptyList())
     val clipboardItems: StateFlow<List<ClipboardItem>> = _clipboardItems
 
-    // SMS
     private val _smsThreads = MutableStateFlow<List<SmsThread>>(emptyList())
     val smsThreads: StateFlow<List<SmsThread>> = _smsThreads
 
     private val _currentThread = MutableStateFlow<List<SmsMessage>>(emptyList())
     val currentThread: StateFlow<List<SmsMessage>> = _currentThread
 
-    // Photos
     private val _photos = MutableStateFlow<List<PhotoItem>>(emptyList())
     val photos: StateFlow<List<PhotoItem>> = _photos
 
-    // Screen/Camera streams
     private val _screenFrameBase64 = MutableStateFlow<String?>(null)
     val screenFrameBase64: StateFlow<String?> = _screenFrameBase64
 
@@ -107,279 +118,118 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isStreamingCamera = MutableStateFlow(false)
     val isStreamingCamera: StateFlow<Boolean> = _isStreamingCamera
 
-    // Error / Toast messages
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
 
     private var currentDownloadFile: FileOutputStream? = null
     private var currentDownloadName: String? = null
 
+    // ──────────────────────────────────────────────────────────────────────
     init {
         instance = this
         observeConnection()
-        setupWebSocketListeners()
+        setupSocketListeners()
         setupNotificationForwarding()
         setupSmsForwarding()
-        
-        // Auto-connect if we have a saved pairing
-        if (pairingManager.hasSavedPairing()) {
-            val pairId = pairingManager.getSavedPairId() ?: ""
-            val ip = pairingManager.getSavedIp() ?: ""
-            val port = pairingManager.getSavedPort()
-            val relayUrl = pairingManager.getSavedRelayUrl() ?: ""
-            val token = pairingManager.getSavedToken() ?: ""
-            
-            val savedDevice = DeviceInfo(ip, port, "Paired PC", token, pairId, relayUrl)
-            connectToPC(savedDevice)
-        }
+        observeFirebaseAuth()
+        autoReconnect()
     }
-
 
     override fun onCleared() {
         super.onCleared()
         if (instance == this) instance = null
-        webSocket.disconnect()
+        socketClient.disconnect()
     }
 
-    /** Called by foreground service when WiFi becomes available */
+    // ─── Auth ──────────────────────────────────────────────────────────────
+
+    private fun observeFirebaseAuth() {
+        auth.addAuthStateListener { fa ->
+            _currentUser.value = fa.currentUser
+            _isSignedIn.value  = fa.currentUser != null
+        }
+    }
+
+    /** Returns a fresh Firebase ID token and saves it for reconnect use */
+    private fun refreshAndSaveToken(onToken: (String) -> Unit) {
+        val user = auth.currentUser
+        if (user == null) { onToken(""); return }
+        user.getIdToken(true).addOnSuccessListener { result ->
+            val token = result.token ?: ""
+            pairingManager.saveIdToken(token)
+            onToken(token)
+        }.addOnFailureListener {
+            Log.e(TAG, "Token refresh failed: ${it.message}")
+            onToken(pairingManager.getSavedIdToken() ?: "")
+        }
+    }
+
+    // ─── Auto-reconnect on app start ──────────────────────────────────────
+
+    private fun autoReconnect() {
+        if (!pairingManager.hasSavedPairing()) return
+        val userId   = pairingManager.getSavedUserId()   ?: return
+        val deviceId = pairingManager.getSavedDeviceId() ?: return
+        val pairId   = pairingManager.getSavedPairId()   ?: ""
+        val relay    = pairingManager.getSavedRelayUrl()
+        val name     = pairingManager.getSavedDeviceName()
+
+        val savedDevice = DeviceInfo(userId, deviceId, name, pairId, relay)
+        Log.d(TAG, "Auto-reconnect: uid=$userId device=$deviceId")
+
+        refreshAndSaveToken { token ->
+            connectToPC(savedDevice, token)
+        }
+    }
+
+    /** Called by foreground service when network becomes available */
     fun reconnectIfNeeded() {
-        val device = _connectedDevice.value ?: return
-        if (!webSocket.isConnected.value) {
-            Log.d(TAG, "Auto-reconnecting to ${device.ip}:${device.port}")
-            webSocket.connect(
-                ip = device.ip, 
-                port = device.port, 
-                token = device.sessionToken, 
-                pair = device.pairId, 
-                relay = device.relayUrl
-            )
-        }
-    }
-
-    private fun observeConnection() {
-        viewModelScope.launch {
-            webSocket.isConnected.collect { connected ->
-                _connectionState.value = if (connected) ConnectionState.CONNECTED
-                else ConnectionState.DISCONNECTED
+        if (!socketClient.isConnected.value) {
+            refreshAndSaveToken { token ->
+                val device = _connectedDevice.value ?: return@refreshAndSaveToken
+                socketClient.connect(
+                    relay     = device.relayUrl,
+                    uid       = device.userId,
+                    did       = device.deviceId,
+                    token     = token,
+                )
             }
         }
     }
 
-    private fun setupWebSocketListeners() {
-        webSocket.addListener("wifi_info") { json ->
-            _wifiInfo.value = WifiInfo(
-                ssid = json.get("ssid")?.asString ?: "Unknown",
-                strength = json.get("strength")?.asInt ?: 0
-            )
-        }
+    // ─── Connect ───────────────────────────────────────────────────────────
 
-        webSocket.addListener("battery_info") { json ->
-            _batteryInfo.value = BatteryInfo(
-                level = json.get("level")?.asInt ?: 0,
-                isCharging = json.get("isCharging")?.asBoolean ?: false
-            )
-        }
+    fun connectToPC(deviceInfo: DeviceInfo, idToken: String = "") {
+        _connectedDevice.value   = deviceInfo
+        _connectionState.value   = ConnectionState.CONNECTING
 
-        webSocket.addListener("bt_info") { json ->
-            val devices = json.getAsJsonArray("devices")?.map { d ->
-                val obj = d.asJsonObject
-                BluetoothDevice(
-                    name = obj.get("name")?.asString ?: "Unknown",
-                    address = obj.get("address")?.asString ?: "",
-                    type = obj.get("type")?.asString ?: "Unknown"
-                )
-            } ?: emptyList()
-            _bluetoothDevices.value = devices
-        }
-
-        webSocket.addListener("wallpaper") { json ->
-            _wallpaperBase64.value = json.get("data")?.asString
-        }
-
-        webSocket.addListener("volume") { json ->
-            val level = json.get("level")?.asInt
-            if (level != null) _volume.value = level
-        }
-
-        webSocket.addListener("brightness") { json ->
-            val level = json.get("level")?.asInt
-            if (level != null) _brightness.value = level
-        }
-
-        webSocket.addListener("now_playing") { json ->
-            _nowPlaying.value = NowPlaying(
-                title = json.get("title")?.asString ?: "Unknown",
-                artist = json.get("artist")?.asString ?: "Unknown",
-                albumArtBase64 = json.get("album_art_base64")?.asString,
-                isPlaying = json.get("isPlaying")?.asBoolean ?: false,
-                position = json.get("position")?.asDouble ?: 0.0,
-                duration = json.get("duration")?.asDouble ?: 0.0
-            )
-        }
-
-        webSocket.addListener("app_list") { json ->
-            val apps = json.getAsJsonArray("apps")?.map { a ->
-                val obj = a.asJsonObject
-                AppItem(
-                    name = obj.get("name")?.asString ?: "",
-                    path = obj.get("path")?.asString ?: "",
-                    iconBase64 = obj.get("icon")?.asString
-                )
-            } ?: emptyList()
-            _appList.value = apps
-        }
-
-        webSocket.addListener("file_list") { json ->
-            val files = json.getAsJsonArray("files")?.map { f ->
-                val obj = f.asJsonObject
-                FileItem(
-                    name = obj.get("name")?.asString ?: "",
-                    path = obj.get("path")?.asString ?: "",
-                    size = obj.get("size")?.asLong ?: 0L,
-                    isDirectory = obj.get("isDirectory")?.asBoolean ?: false,
-                    type = obj.get("type")?.asString ?: "file"
-                )
-            } ?: emptyList()
-            _fileList.value = files
-        }
-
-        webSocket.addListener("file_chunk") { json ->
-            val name = json.get("name")?.asString ?: "unknown"
-            val progress = json.get("progress")?.asFloat ?: 0f
-            val data = json.get("data")?.asString ?: ""
-            val index = json.get("index")?.asInt ?: 0
-            
-            _fileTransferProgress.value = progress
-            
-            try {
-                if (index == 0) {
-                    val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "NexLink")
-                    if (!dir.exists()) dir.mkdirs()
-                    val file = File(dir, name)
-                    currentDownloadFile = FileOutputStream(file)
-                    currentDownloadName = name
-                }
-                
-                val bytes = Base64.decode(data, Base64.DEFAULT)
-                currentDownloadFile?.write(bytes)
-                
-                if (progress >= 1f) {
-                    currentDownloadFile?.close()
-                    currentDownloadFile = null
-                    _toastMessage.value = "Downloaded: " + currentDownloadName
-                    _fileTransferProgress.value = null
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Download failed", e)
-                _toastMessage.value = "Download failed: " + e.message
-                currentDownloadFile?.close()
-                currentDownloadFile = null
-                _fileTransferProgress.value = null
-            }
-        }
-
-        webSocket.addListener("clipboard_pull") { json ->
-            val content = json.get("content")?.asString ?: return@addListener
-            val item = ClipboardItem(content = content, isImage = false, source = "pc")
-            _clipboardItems.value = (_clipboardItems.value + item).takeLast(50)
-        }
-
-        webSocket.addListener("clipboard_push") { json ->
-            // PC is pushing clipboard to phone
-            val content = json.get("content")?.asString ?: return@addListener
-            val item = ClipboardItem(content = content, isImage = false, source = "pc")
-            _clipboardItems.value = (_clipboardItems.value + item).takeLast(50)
-        }
-
-        webSocket.addListener("sms_list") { json ->
-            val threads = json.getAsJsonArray("threads")?.map { t ->
-                val obj = t.asJsonObject
-                SmsThread(
-                    id = obj.get("id")?.asString ?: "",
-                    contactName = obj.get("contactName")?.asString ?: "Unknown",
-                    contactNumber = obj.get("contactNumber")?.asString ?: "",
-                    lastMessage = obj.get("lastMessage")?.asString ?: "",
-                    timestamp = obj.get("timestamp")?.asLong ?: 0L,
-                    unread = obj.get("unread")?.asInt ?: 0
-                )
-            } ?: emptyList()
-            _smsThreads.value = threads
-        }
-
-        webSocket.addListener("photo_list") { json ->
-            val photos = json.getAsJsonArray("photos")?.map { p ->
-                val obj = p.asJsonObject
-                PhotoItem(
-                    name = obj.get("name")?.asString ?: "",
-                    path = obj.get("path")?.asString ?: "",
-                    thumbnailBase64 = obj.get("thumbnail")?.asString,
-                    timestamp = obj.get("timestamp")?.asLong ?: 0L
-                )
-            } ?: emptyList()
-            _photos.value = photos
-        }
-
-        webSocket.addListener("screen_frame") { json ->
-            _screenFrameBase64.value = json.get("data")?.asString
-        }
-
-        webSocket.addListener("camera_frame") { json ->
-            _cameraFrameBase64.value = json.get("data")?.asString
-        }
-
-        webSocket.addListener("error") { json ->
-            _toastMessage.value = json.get("message")?.asString ?: "Unknown error"
-        }
-    }
-
-    private fun setupNotificationForwarding() {
-        LinkBridgeNotificationService.onNotification = { app, title, body ->
-            webSocket.sendMessage(mapOf(
-                "type" to "notification",
-                "app" to app,
-                "title" to title,
-                "body" to body,
-                "timestamp" to System.currentTimeMillis()
-            ))
-        }
-    }
-
-    private fun setupSmsForwarding() {
-        SmsReceiver.onSmsReceived = { sender, body, timestamp ->
-            webSocket.sendMessage(mapOf(
-                "type" to "sms_received",
-                "sender" to sender,
-                "body" to body,
-                "timestamp" to timestamp
-            ))
-        }
-    }
-
-    fun connectToPC(deviceInfo: DeviceInfo) {
-        _connectedDevice.value = deviceInfo
-        _connectionState.value = ConnectionState.CONNECTING
-        
-        // Save this pairing for future auto-connects
         pairingManager.savePairing(
-            pairId = deviceInfo.pairId,
-            ip = deviceInfo.ip,
-            port = deviceInfo.port,
-            relayUrl = deviceInfo.relayUrl,
-            token = deviceInfo.sessionToken
-        )
-        
-        // Pass pairId and relayUrl so WebSocket can fall back to relay
-        webSocket.connect(
-            ip = deviceInfo.ip,
-            port = deviceInfo.port,
-            token = deviceInfo.sessionToken,
-            pair = deviceInfo.pairId,
-            relay = deviceInfo.relayUrl
+            userId     = deviceInfo.userId,
+            deviceId   = deviceInfo.deviceId,
+            pairId     = deviceInfo.pairId,
+            relayUrl   = deviceInfo.relayUrl,
+            idToken    = idToken,
+            deviceName = deviceInfo.deviceName,
         )
 
-        // Request initial data once connected
+        val doConnect: (String) -> Unit = { token ->
+            socketClient.connect(
+                relay = deviceInfo.relayUrl,
+                uid   = deviceInfo.userId,
+                did   = deviceInfo.deviceId,
+                token = token,
+            )
+        }
+
+        if (idToken.isNotEmpty()) {
+            doConnect(idToken)
+        } else {
+            refreshAndSaveToken(doConnect)
+        }
+
+        // Request initial PC data once connected
         viewModelScope.launch {
-            webSocket.isConnected.collect { connected ->
+            socketClient.isConnected.collect { connected ->
                 if (connected) {
                     requestInitialData()
                     return@collect
@@ -390,96 +240,284 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unpairAndDisconnect() {
         pairingManager.clearPairing()
-        webSocket.disconnect()
-        _connectedDevice.value = null
-        _connectionState.value = ConnectionState.DISCONNECTED
+        socketClient.disconnect()
+        _connectedDevice.value   = null
+        _connectionState.value   = ConnectionState.DISCONNECTED
     }
+
+    // ─── Connection observation ────────────────────────────────────────────
+
+    private fun observeConnection() {
+        viewModelScope.launch {
+            socketClient.isConnected.collect { connected ->
+                _connectionState.value = if (connected) ConnectionState.CONNECTED
+                                         else          ConnectionState.DISCONNECTED
+            }
+        }
+    }
+
+    // ─── Socket event listeners ────────────────────────────────────────────
+
+    private fun setupSocketListeners() {
+        socketClient.addListener("wifi_info") { json ->
+            _wifiInfo.value = WifiInfo(
+                ssid     = json.get("ssid")?.asString ?: "Unknown",
+                strength = json.get("strength")?.asInt ?: 0
+            )
+        }
+
+        socketClient.addListener("battery_info") { json ->
+            _batteryInfo.value = BatteryInfo(
+                level      = json.get("level")?.asInt ?: 0,
+                isCharging = json.get("isCharging")?.asBoolean ?: false
+            )
+        }
+
+        socketClient.addListener("bt_info") { json ->
+            val devices = json.getAsJsonArray("devices")?.map { d ->
+                val obj = d.asJsonObject
+                BluetoothDevice(
+                    name    = obj.get("name")?.asString ?: "Unknown",
+                    address = obj.get("address")?.asString ?: "",
+                    type    = obj.get("type")?.asString ?: "Unknown"
+                )
+            } ?: emptyList()
+            _bluetoothDevices.value = devices
+        }
+
+        socketClient.addListener("wallpaper") { json ->
+            _wallpaperBase64.value = json.get("data")?.asString
+        }
+
+        socketClient.addListener("volume") { json ->
+            json.get("level")?.asInt?.let { _volume.value = it }
+        }
+
+        socketClient.addListener("brightness") { json ->
+            json.get("level")?.asInt?.let { _brightness.value = it }
+        }
+
+        socketClient.addListener("now_playing") { json ->
+            _nowPlaying.value = NowPlaying(
+                title          = json.get("title")?.asString ?: "Unknown",
+                artist         = json.get("artist")?.asString ?: "Unknown",
+                albumArtBase64 = json.get("album_art_base64")?.asString,
+                isPlaying      = json.get("isPlaying")?.asBoolean ?: false,
+                position       = json.get("position")?.asDouble ?: 0.0,
+                duration       = json.get("duration")?.asDouble ?: 0.0
+            )
+        }
+
+        socketClient.addListener("app_list") { json ->
+            val apps = json.getAsJsonArray("apps")?.map { a ->
+                val obj = a.asJsonObject
+                AppItem(
+                    name        = obj.get("name")?.asString ?: "",
+                    path        = obj.get("path")?.asString ?: "",
+                    iconBase64  = obj.get("icon")?.asString
+                )
+            } ?: emptyList()
+            _appList.value = apps
+        }
+
+        socketClient.addListener("file_list") { json ->
+            val files = json.getAsJsonArray("files")?.map { f ->
+                val obj = f.asJsonObject
+                FileItem(
+                    name        = obj.get("name")?.asString ?: "",
+                    path        = obj.get("path")?.asString ?: "",
+                    size        = obj.get("size")?.asLong ?: 0L,
+                    isDirectory = obj.get("isDirectory")?.asBoolean ?: false,
+                    type        = obj.get("type")?.asString ?: "file"
+                )
+            } ?: emptyList()
+            _fileList.value = files
+        }
+
+        socketClient.addListener("file_chunk") { json ->
+            val name     = json.get("name")?.asString ?: "unknown"
+            val progress = json.get("progress")?.asFloat ?: 0f
+            val data     = json.get("data")?.asString ?: ""
+            val index    = json.get("index")?.asInt ?: 0
+
+            _fileTransferProgress.value = progress
+            try {
+                if (index == 0) {
+                    val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "NexLink")
+                    if (!dir.exists()) dir.mkdirs()
+                    currentDownloadFile = FileOutputStream(File(dir, name))
+                    currentDownloadName = name
+                }
+                currentDownloadFile?.write(Base64.decode(data, Base64.DEFAULT))
+                if (progress >= 1f) {
+                    currentDownloadFile?.close()
+                    currentDownloadFile = null
+                    _toastMessage.value = "Downloaded: $currentDownloadName"
+                    _fileTransferProgress.value = null
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Download failed", e)
+                _toastMessage.value = "Download failed: ${e.message}"
+                currentDownloadFile?.close()
+                currentDownloadFile = null
+                _fileTransferProgress.value = null
+            }
+        }
+
+        socketClient.addListener("clipboard_pull")  { json -> addClipboard(json, "pc") }
+        socketClient.addListener("clipboard_push")  { json -> addClipboard(json, "pc") }
+        socketClient.addListener("clipboard_sync")  { json -> addClipboard(json, "pc") }
+
+        socketClient.addListener("sms_list") { json ->
+            val threads = json.getAsJsonArray("threads")?.map { t ->
+                val obj = t.asJsonObject
+                SmsThread(
+                    id            = obj.get("id")?.asString ?: "",
+                    contactName   = obj.get("contactName")?.asString ?: "Unknown",
+                    contactNumber = obj.get("contactNumber")?.asString ?: "",
+                    lastMessage   = obj.get("lastMessage")?.asString ?: "",
+                    timestamp     = obj.get("timestamp")?.asLong ?: 0L,
+                    unread        = obj.get("unread")?.asInt ?: 0
+                )
+            } ?: emptyList()
+            _smsThreads.value = threads
+        }
+
+        socketClient.addListener("photo_list") { json ->
+            val photos = json.getAsJsonArray("photos")?.map { p ->
+                val obj = p.asJsonObject
+                PhotoItem(
+                    name            = obj.get("name")?.asString ?: "",
+                    path            = obj.get("path")?.asString ?: "",
+                    thumbnailBase64 = obj.get("thumbnail")?.asString,
+                    timestamp       = obj.get("timestamp")?.asLong ?: 0L
+                )
+            } ?: emptyList()
+            _photos.value = photos
+        }
+
+        socketClient.addListener("screen_frame") { json ->
+            _screenFrameBase64.value = json.get("data")?.asString
+        }
+
+        socketClient.addListener("camera_frame") { json ->
+            _cameraFrameBase64.value = json.get("data")?.asString
+        }
+
+        socketClient.addListener("usb_connected") { _ ->
+            Log.d(TAG, "USB mode activated by laptop")
+            _isUsbMode.value = true
+        }
+
+        socketClient.addListener("usb_disconnected") { _ ->
+            Log.d(TAG, "USB mode deactivated")
+            _isUsbMode.value = false
+        }
+
+        socketClient.addListener("error") { json ->
+            _toastMessage.value = json.get("message")?.asString ?: "Unknown error"
+        }
+    }
+
+    private fun addClipboard(json: JsonObject, source: String) {
+        val content = json.get("content")?.asString ?: return
+        val item    = ClipboardItem(content = content, isImage = false, source = source)
+        _clipboardItems.value = (_clipboardItems.value + item).takeLast(50)
+    }
+
+    // ─── Forwarding setup ──────────────────────────────────────────────────
+
+    private fun setupNotificationForwarding() {
+        LinkBridgeNotificationService.onNotification = { app, title, body ->
+            socketClient.sendMessage(mapOf(
+                "type"      to "notification",
+                "app"       to app,
+                "title"     to title,
+                "body"      to body,
+                "timestamp" to System.currentTimeMillis()
+            ))
+        }
+    }
+
+    private fun setupSmsForwarding() {
+        SmsReceiver.onSmsReceived = { sender, body, timestamp ->
+            socketClient.sendMessage(mapOf(
+                "type"      to "sms_received",
+                "sender"    to sender,
+                "body"      to body,
+                "timestamp" to timestamp
+            ))
+        }
+    }
+
+    // ─── Commands ──────────────────────────────────────────────────────────
 
     fun requestInitialData() {
-        webSocket.sendMessage(mapOf("type" to "request_info"))
-        webSocket.sendMessage(mapOf("type" to "get_wallpaper"))
+        socketClient.sendMessage(mapOf("type" to "request_info"))
+        socketClient.sendMessage(mapOf("type" to "get_wallpaper"))
     }
 
-    fun requestSystemInfo() {
-        webSocket.sendMessage(mapOf("type" to "request_info"))
-    }
+    fun requestSystemInfo() = socketClient.sendMessage(mapOf("type" to "request_info"))
 
-    fun sendMediaControl(action: String) {
-        webSocket.sendMessage(mapOf("type" to "media_control", "action" to action))
-    }
+    fun sendMediaControl(action: String) =
+        socketClient.sendMessage(mapOf("type" to "media_control", "action" to action))
 
     fun seekMedia(positionSec: Double) {
-        webSocket.sendMessage(mapOf("type" to "media_seek", "position" to positionSec))
-        // Optimistically update local state to avoid UI jitter
-        val current = _nowPlaying.value
-        if (current != null) {
-            _nowPlaying.value = current.copy(position = positionSec)
-        }
+        socketClient.sendMessage(mapOf("type" to "media_seek", "position" to positionSec))
+        _nowPlaying.value = _nowPlaying.value?.copy(position = positionSec)
     }
 
     fun sendVolume(level: Int) {
         _volume.value = level
-        webSocket.sendMessage(mapOf("type" to "volume", "level" to level))
+        socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
     }
 
     fun sendBrightness(level: Int) {
         _brightness.value = level
-        webSocket.sendMessage(mapOf("type" to "brightness", "level" to level))
+        socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
     }
 
-    fun lockPC() {
-        webSocket.sendMessage(mapOf("type" to "lock_pc"))
-    }
+    fun lockPC() = socketClient.sendMessage(mapOf("type" to "lock_pc"))
 
-    fun launchApp(appName: String, appPath: String) {
-        webSocket.sendMessage(mapOf("type" to "launch_app", "appName" to appName, "appPath" to appPath))
-    }
+    fun launchApp(appName: String, appPath: String) =
+        socketClient.sendMessage(mapOf("type" to "launch_app", "appName" to appName, "appPath" to appPath))
 
-    fun requestAppList() {
-        webSocket.sendMessage(mapOf("type" to "app_list"))
-    }
+    fun requestAppList() = socketClient.sendMessage(mapOf("type" to "app_list"))
 
     fun browsePath(path: String) {
         _currentPath.value = path
-        webSocket.sendMessage(mapOf("type" to "browse", "path" to path))
+        socketClient.sendMessage(mapOf("type" to "browse", "path" to path))
     }
 
-    fun openFile(path: String) {
-        webSocket.sendMessage(mapOf("type" to "open_file", "path" to path))
-    }
+    fun openFile(path: String) = socketClient.sendMessage(mapOf("type" to "open_file", "path" to path))
 
-    fun downloadFile(path: String) {
-        webSocket.sendMessage(mapOf("type" to "download_file", "path" to path))
-    }
+    fun downloadFile(path: String) = socketClient.sendMessage(mapOf("type" to "download_file", "path" to path))
 
     fun pushClipboard(content: String) {
-        val item = ClipboardItem(content = content, isImage = false, source = "phone")
-        _clipboardItems.value = (_clipboardItems.value + item).takeLast(50)
-        webSocket.sendMessage(mapOf("type" to "clipboard_push", "content" to content))
+        _clipboardItems.value = (_clipboardItems.value + ClipboardItem(content = content, source = "phone")).takeLast(50)
+        socketClient.sendMessage(mapOf("type" to "clipboard_push", "content" to content))
     }
 
-    fun pullClipboard() {
-        webSocket.sendMessage(mapOf("type" to "clipboard_pull"))
-    }
+    fun pullClipboard() = socketClient.sendMessage(mapOf("type" to "clipboard_pull"))
 
     fun startScreenStream() {
         _isStreamingScreen.value = true
-        webSocket.sendMessage(mapOf("type" to "start_screen"))
+        socketClient.sendMessage(mapOf("type" to "start_screen"))
     }
 
     fun stopScreenStream() {
         _isStreamingScreen.value = false
-        webSocket.sendMessage(mapOf("type" to "stop_screen"))
+        socketClient.sendMessage(mapOf("type" to "stop_screen"))
     }
 
     fun startCameraStream() {
         _isStreamingCamera.value = true
-        webSocket.sendMessage(mapOf("type" to "start_camera"))
+        socketClient.sendMessage(mapOf("type" to "start_camera"))
     }
 
     fun stopCameraStream() {
         _isStreamingCamera.value = false
-        webSocket.sendMessage(mapOf("type" to "stop_camera"))
+        socketClient.sendMessage(mapOf("type" to "stop_camera"))
     }
 
     fun pinApp(app: AppItem) {
@@ -488,12 +526,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun clearToast() {
-        _toastMessage.value = null
+    fun clearToast() { _toastMessage.value = null }
+
+    fun sendSms(threadId: String, body: String) =
+        socketClient.sendMessage(mapOf("type" to "sms_send", "threadId" to threadId, "body" to body))
+
+    // ─── USB / touchpad events ─────────────────────────────────────────────
+
+    fun onUsbConnected() {
+        _isUsbMode.value = true
+        socketClient.sendMessage(mapOf("type" to "usb_connected"))
     }
 
-    fun sendSms(threadId: String, body: String) {
-        webSocket.sendMessage(mapOf("type" to "sms_send", "threadId" to threadId, "body" to body))
+    fun onUsbDisconnected() {
+        _isUsbMode.value = false
+        socketClient.sendMessage(mapOf("type" to "usb_disconnected"))
     }
 
+    fun sendMouseMove(dx: Float, dy: Float) {
+        socketClient.sendMessage(mapOf("type" to "mouse_move", "dx" to dx, "dy" to dy))
+    }
+
+    fun sendMouseTap() {
+        socketClient.sendMessage(mapOf("type" to "mouse_tap"))
+    }
+
+    fun sendMouseRightTap() {
+        socketClient.sendMessage(mapOf("type" to "mouse_right_tap"))
+    }
+
+    fun sendMouseScroll(dy: Float) {
+        socketClient.sendMessage(mapOf("type" to "mouse_scroll", "dy" to dy))
+    }
 }

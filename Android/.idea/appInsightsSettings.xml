@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.phynex.NexLink" />
+                  <option name="mobileSdkAppId" value="1:496826457204:android:0fb1c68fbb75cccd540521" />
+                  <option name="projectId" value="nexlink-62e41" />
+                  <option name="projectNumber" value="496826457204" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

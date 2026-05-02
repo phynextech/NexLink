@@ -15,9 +15,11 @@ namespace NexLink
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _vm = new();
-        private const int WsPort = 8765;
-        private readonly string _sessionToken = Guid.NewGuid().ToString("N")[..8];
         private readonly List<ClipboardItem> _clipboardItems = new();
+
+        // Cloud identity — loaded from local settings or generated on first run
+        private string _userId   = "";
+        private string _deviceId = "";
 
         public MainWindow()
         {
@@ -39,19 +41,22 @@ namespace NexLink
         {
             try
             {
-                // Get or create a permanent pairId for this machine
-                var pairId = await PairingService.GetOrCreatePairIdAsync("local_user");
+                // Load or create persistent device identity for this PC
+                (_userId, _deviceId) = PairingService.LoadOrCreateIdentity();
+
+                // Register device on the relay server and get a pairId
+                var pairId = await PairingService.GetOrCreatePairIdAsync(_userId, _deviceId, Environment.MachineName);
                 if (!string.IsNullOrEmpty(pairId))
                 {
                     _vm.SetPairId(pairId);
-                    // Also connect to relay as desktop so phone can reach us cross-network
-                    _vm.WsService.StartRelay(pairId);
-                    StatusBar.Text = $"Relay ready • PairID: {pairId[..8]}…";
+                    // Connect to relay as "desktop" — no local LAN server
+                    _vm.WsService.ConnectToRelay(_userId, _deviceId);
+                    StatusBar.Text = $"Cloud relay connected • Device: {_deviceId[..8]}…";
                 }
             }
             catch (Exception ex)
             {
-                StatusBar.Text = $"Relay unavailable (offline mode): {ex.Message}";
+                StatusBar.Text = $"Relay unavailable: {ex.Message}";
             }
         }
 
@@ -59,8 +64,7 @@ namespace NexLink
         {
             try
             {
-                _vm.WsService.Start(WsPort);
-                PortLabel.Text = $"ws://0.0.0.0:{WsPort}";
+                PortLabel.Text = WebSocketService.RelayServerUrl;
 
                 _vm.WsService.PhoneConnected += () => Dispatcher.Invoke(() =>
                 {
@@ -159,34 +163,12 @@ namespace NexLink
 
         private void GenerateQR()
         {
-            var allIps = WebSocketService.GetAllLocalIPs();
-            var ip = WebSocketService.GetLocalIPAddress();
-
-            // Populate the IP selector
-            IpSelector.ItemsSource = allIps;
-            if (allIps.Contains(ip))
-                IpSelector.SelectedItem = ip;
-            else if (allIps.Count > 0)
-            {
-                IpSelector.SelectedIndex = 0;
-                ip = allIps[0];
-            }
-
-            IpPortLabel.Text = $"Port: {WsPort}";
-            _vm.GenerateQRCode(ip, WsPort, Environment.MachineName, _sessionToken);
+            if (string.IsNullOrEmpty(_userId) || string.IsNullOrEmpty(_deviceId)) return;
+            _vm.GenerateQRCode(_userId, _deviceId, Environment.MachineName);
             QrCodeImage.Source = _vm.QrCodeImage;
         }
 
-        private void IpSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (IpSelector.SelectedItem is string selectedIp)
-            {
-                IpPortLabel.Text = $"Port: {WsPort}";
-                _vm.GenerateQRCode(selectedIp, WsPort, Environment.MachineName, _sessionToken);
-                QrCodeImage.Source = _vm.QrCodeImage;
-                StatusBar.Text = $"QR updated for {selectedIp}:{WsPort}";
-            }
-        }
+
 
         private void SetStatusConnected(bool connected)
         {

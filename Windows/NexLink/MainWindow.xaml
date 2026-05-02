@@ -606,10 +606,9 @@
                             </Border>
                             <TextBlock Text="·" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#849396" Margin="12,0"/>
                             
-                            <!-- Replace Port label with IP Selector -->
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock x:Name="IpPortLabel" Text="Port: " FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#849396" Visibility="Collapsed"/>
-                                <ComboBox x:Name="IpSelector" Background="#1A2238" Foreground="#00E5FF" BorderBrush="#334166" FontFamily="JetBrains Mono, Consolas" FontSize="12" MinWidth="140" SelectionChanged="IpSelector_SelectionChanged" ToolTip="Select network IP"/>
+                                <TextBlock Text="Cloud Relay ID: " FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#849396"/>
+                                <TextBlock Text="{Binding PairId}" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#00E5FF" FontWeight="Bold"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>

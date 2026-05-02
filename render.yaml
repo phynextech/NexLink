@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nexlink-server
+    runtime: node
+    repo: https://github.com/phynextech/NexLink
+    rootDir: Server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FIREBASE_DATABASE_URL
+        value: https://nexlink-62e41-default-rtdb.firebaseio.com/
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false   # Set this secret manually in the Render dashboard

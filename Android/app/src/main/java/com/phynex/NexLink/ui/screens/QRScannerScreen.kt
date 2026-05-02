@@ -13,7 +13,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +37,20 @@ import com.phynex.NexLink.ui.theme.*
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
+/**
+ * QR Scanner screen — cloud-only architecture.
+ *
+ * Expected QR payload (JSON):
+ * {
+ *   "userId":     "firebase-uid",
+ *   "deviceId":   "uuid-of-pc",
+ *   "deviceName": "My Desktop",
+ *   "pairId":     "server-pair-id",
+ *   "relayUrl":   "https://nexlink-khhe.onrender.com"   (optional, default used if absent)
+ * }
+ *
+ * The old ip/port/token fields are ignored.
+ */
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalGetImage::class)
 @Composable
 fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
@@ -48,9 +61,9 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "scan_anim")
     val scanLineY by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 1f,
+        targetValue  = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
+            animation  = tween(2000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "scan_line"
@@ -79,8 +92,8 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(24.dp))
-            
-            // App Bar Match
+
+            // App Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -90,17 +103,17 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Sensors,
+                        imageVector    = Icons.Default.Sensors,
                         contentDescription = null,
-                        tint = primary,
-                        modifier = Modifier.size(24.dp)
+                        tint           = primary,
+                        modifier       = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "NexLink",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = primary,
+                        style        = MaterialTheme.typography.titleLarge,
+                        fontWeight   = FontWeight.Black,
+                        color        = primary,
                         letterSpacing = (-0.5).sp
                     )
                 }
@@ -120,9 +133,9 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         "Scan to Connect",
-                        style = MaterialTheme.typography.titleLarge,
+                        style      = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color      = Color.White
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -134,7 +147,6 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
 
                     when {
                         cameraPermissionState.status.isGranted -> {
-                            // Camera viewfinder
                             Box(
                                 modifier = Modifier
                                     .size(240.dp)
@@ -171,13 +183,13 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                                                     val raw = barcode.rawValue ?: continue
                                                                     try {
                                                                         val json = JSONObject(raw)
+                                                                        // Cloud-only QR payload
                                                                         val device = DeviceInfo(
-                                                                            ip = json.getString("ip"),
-                                                                            port = json.getInt("port"),
+                                                                            userId     = json.getString("userId"),
+                                                                            deviceId   = json.getString("deviceId"),
                                                                             deviceName = json.optString("deviceName", "PC"),
-                                                                            sessionToken = json.optString("token", json.optString("sessionToken", "")),
-                                                                            pairId = json.optString("pairId", ""),
-                                                                            relayUrl = json.optString("relayUrl", "")
+                                                                            pairId     = json.optString("pairId", ""),
+                                                                            relayUrl   = json.optString("relayUrl", "https://nexlink-khhe.onrender.com")
                                                                         )
                                                                         scanned = true
                                                                         onScanned(device)
@@ -212,29 +224,27 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                         brush = Brush.horizontalGradient(
                                             listOf(Color.Transparent, primary, secondary, primary, Color.Transparent)
                                         ),
-                                        start = Offset(0f, size.height * scanLineY),
-                                        end = Offset(size.width, size.height * scanLineY),
+                                        start       = Offset(0f, size.height * scanLineY),
+                                        end         = Offset(size.width, size.height * scanLineY),
                                         strokeWidth = 3f
                                     )
                                 }
 
                                 // Corner brackets
-                                Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                                    val cornerSize = 40f
+                                Canvas(modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp)) {
+                                    val cornerSize  = 40f
                                     val strokeWidth = 4f
-                                    val color = primary
-                                    // Top-left
-                                    drawLine(color, Offset(0f, cornerSize), Offset(0f, 0f), strokeWidth)
-                                    drawLine(color, Offset(0f, 0f), Offset(cornerSize, 0f), strokeWidth)
-                                    // Top-right
-                                    drawLine(color, Offset(size.width - cornerSize, 0f), Offset(size.width, 0f), strokeWidth)
-                                    drawLine(color, Offset(size.width, 0f), Offset(size.width, cornerSize), strokeWidth)
-                                    // Bottom-left
-                                    drawLine(color, Offset(0f, size.height - cornerSize), Offset(0f, size.height), strokeWidth)
-                                    drawLine(color, Offset(0f, size.height), Offset(cornerSize, size.height), strokeWidth)
-                                    // Bottom-right
-                                    drawLine(color, Offset(size.width - cornerSize, size.height), Offset(size.width, size.height), strokeWidth)
-                                    drawLine(color, Offset(size.width, size.height - cornerSize), Offset(size.width, size.height), strokeWidth)
+                                    val c           = primary
+                                    drawLine(c, Offset(0f, cornerSize), Offset(0f, 0f), strokeWidth)
+                                    drawLine(c, Offset(0f, 0f), Offset(cornerSize, 0f), strokeWidth)
+                                    drawLine(c, Offset(size.width - cornerSize, 0f), Offset(size.width, 0f), strokeWidth)
+                                    drawLine(c, Offset(size.width, 0f), Offset(size.width, cornerSize), strokeWidth)
+                                    drawLine(c, Offset(0f, size.height - cornerSize), Offset(0f, size.height), strokeWidth)
+                                    drawLine(c, Offset(0f, size.height), Offset(cornerSize, size.height), strokeWidth)
+                                    drawLine(c, Offset(size.width - cornerSize, size.height), Offset(size.width, size.height), strokeWidth)
+                                    drawLine(c, Offset(size.width, size.height - cornerSize), Offset(size.width, size.height), strokeWidth)
                                 }
                             }
 
@@ -250,20 +260,21 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                             Spacer(Modifier.height(40.dp))
                             Icon(
                                 Icons.Default.CameraAlt, null,
-                                tint = primary, modifier = Modifier.size(72.dp)
+                                tint     = primary,
+                                modifier = Modifier.size(72.dp)
                             )
                             Spacer(Modifier.height(20.dp))
                             Text(
                                 "Camera permission required\nto scan QR codes",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = onSurfaceVariant,
+                                style     = MaterialTheme.typography.bodyLarge,
+                                color     = onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
                             Spacer(Modifier.height(24.dp))
                             Button(
                                 onClick = { cameraPermissionState.launchPermissionRequest() },
-                                colors = ButtonDefaults.buttonColors(containerColor = primary),
-                                shape = RoundedCornerShape(12.dp)
+                                colors  = ButtonDefaults.buttonColors(containerColor = primary),
+                                shape   = RoundedCornerShape(12.dp)
                             ) {
                                 Icon(Icons.Default.Camera, null)
                                 Spacer(Modifier.width(8.dp))
@@ -281,88 +292,53 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Manual Connection Section
+            // Info card — cloud connection
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Divider
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.1f)))
                     Text(
-                        "or connect manually",
+                        "cloud connection",
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = onSurfaceVariant
+                        style    = MaterialTheme.typography.labelMedium,
+                        color    = onSurfaceVariant
                     )
                     Box(modifier = Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.1f)))
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Input Field
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "ENTER IP ADDRESS",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onSurfaceVariant,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = "",
-                        onValueChange = {},
-                        placeholder = { Text("192.168.1.XX") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = Color(0xFF2A3555),
-                            focusedBorderColor = primary,
-                            unfocusedContainerColor = Color(0xFF1A2236),
-                            focusedContainerColor = Color(0xFF1A2236)
-                        ),
-                        singleLine = true
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Primary Action
-                Button(
-                    onClick = { /* Connect */ },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primary),
-                    shape = CircleShape
+                // Connection info chip
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF1A2236)
                 ) {
-                    Text(
-                        "Connect via USB",
-                        color = onPrimary,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Cloud, null, tint = primary, modifier = Modifier.size(18.dp))
+                        Text(
+                            "nexlink-khhe.onrender.com",
+                            style  = MaterialTheme.typography.bodySmall,
+                            color  = onSurfaceVariant
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Having trouble? View setup guide",
-                        color = primary,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Works on any network — no local Wi-Fi required",
+                    style     = MaterialTheme.typography.labelSmall,
+                    color     = onSurfaceVariant.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

@@ -16,6 +16,8 @@ namespace NexLink.ViewModels
     {
         // ─── Services ───
         public readonly WebSocketService WsService = new();
+        private bool _usbModeActive = false;
+        public bool UsbModeActive { get => _usbModeActive; set { _usbModeActive = value; OnPropertyChanged(); } }
         private readonly ScreenCaptureService _screenCapture = new();
         private readonly CameraService _cameraService = new();
         private readonly ClipboardService _clipboardService = new();
@@ -44,7 +46,7 @@ namespace NexLink.ViewModels
         private string _pairId = "";
         public string PairId { get => _pairId; set { _pairId = value; OnPropertyChanged(); } }
 
-        private string _connectionMode = "Local WiFi";
+        private string _connectionMode = "Cloud Relay";
         public string ConnectionMode { get => _connectionMode; set { _connectionMode = value; OnPropertyChanged(); } }
 
         // ─── Notifications ───
@@ -136,85 +138,143 @@ namespace NexLink.ViewModels
             {
                 case "handshake":
                     PhoneName = msg["device"]?.ToString() ?? "Android Phone";
-                    // Send back system info immediately on handshake
-                    Task.Run(async () => { SendSystemInfo(); await System.Threading.Tasks.Task.Delay(500); SendAppList(); SendWallpaper(); });
+                    Task.Run(async () => { SendSystemInfo(); await Task.Delay(500); SendAppList(); SendWallpaper(); });
                     break;
 
                 case "pong":
-                    break; // ignore heartbeat responses
+                    break;
+
                 case "lock_pc":
                     SystemInfoService.LockPC();
                     break;
+
                 case "volume":
                     SystemInfoService.SetVolume(msg["level"]?.ToObject<int>() ?? 50);
                     break;
+
                 case "brightness":
                     SystemInfoService.SetBrightness(msg["level"]?.ToObject<int>() ?? 50);
                     break;
+
                 case "media_control":
                     MediaControlService.SendMediaKey(msg["action"]?.ToString() ?? "play_pause");
                     break;
+
                 case "media_seek":
                     _ = MediaControlService.SetPlaybackPositionAsync(msg["position"]?.ToObject<double>() ?? 0);
                     break;
+
                 case "app_list":
                     SendAppList();
                     break;
+
                 case "launch_app":
                     SystemInfoService.LaunchApp(msg["appPath"]?.ToString() ?? msg["appName"]?.ToString() ?? "");
                     break;
+
                 case "browse":
                     SendFileList(msg["path"]?.ToString() ?? "root");
                     break;
+
                 case "open_file":
                     SystemInfoService.OpenFile(msg["path"]?.ToString() ?? "");
                     break;
+
                 case "download_file":
+                case "file_request":
                     SendFile(msg["path"]?.ToString() ?? "");
                     break;
+
                 case "start_screen":
                     _screenCapture.StartStreaming(b64 =>
                         WsService.Send(new { type = "screen_frame", data = b64 }), 500);
                     break;
+
                 case "stop_screen":
                     _screenCapture.StopStreaming();
                     break;
+
                 case "start_camera":
                     _cameraService.StartStreaming(b64 =>
                         WsService.Send(new { type = "camera_frame", data = b64 }), 100);
                     break;
+
                 case "stop_camera":
                     _cameraService.StopStreaming();
                     break;
+
                 case "clipboard_push":
+                case "clipboard_sync":
                     ClipboardService.SetClipboardText(msg["content"]?.ToString() ?? "");
                     break;
+
                 case "clipboard_pull":
                     WsService.Send(new { type = "clipboard_pull", content = ClipboardService.GetClipboardText() });
                     break;
+
                 case "get_wallpaper":
                 case "request_info":
                     SendSystemInfo();
                     SendWallpaper();
                     break;
+
                 case "notification":
+                case "send_notification":
                     App.Current.Dispatcher.Invoke(() =>
                     {
                         Notifications.Insert(0, new NotificationItem
                         {
-                            App = msg["app"]?.ToString() ?? "",
-                            Title = msg["title"]?.ToString() ?? "",
-                            Body = msg["body"]?.ToString() ?? "",
+                            App       = msg["app"]?.ToString() ?? "",
+                            Title     = msg["title"]?.ToString() ?? "",
+                            Body      = msg["body"]?.ToString() ?? "",
                             Timestamp = DateTime.Now
                         });
                         if (Notifications.Count > 50) Notifications.RemoveAt(Notifications.Count - 1);
                     });
                     break;
-                case "sms_received":
-                    // Handle incoming SMS forwarded from phone
+
+                // ── USB Touchpad / Mouse control ───────────────────────────────
+                case "mouse_move":
+                {
+                    var dx = msg["dx"]?.ToObject<float>() ?? 0f;
+                    var dy = msg["dy"]?.ToObject<float>() ?? 0f;
+                    MouseControlService.MoveRelative(dx, dy);
                     break;
+                }
+                case "mouse_tap":
+                    MouseControlService.LeftClick();
+                    break;
+
+                case "mouse_right_tap":
+                    MouseControlService.RightClick();
+                    break;
+
+                case "mouse_scroll":
+                {
+                    var dy = msg["dy"]?.ToObject<float>() ?? 0f;
+                    MouseControlService.Scroll(dy);
+                    break;
+                }
+                case "usb_connected":
+                    UsbModeActive = true;
+                    StatusText = "USB Touchpad mode active";
+                    WsService.Send(new { type = "usb_connected" });
+                    break;
+
+                case "usb_disconnected":
+                    UsbModeActive = false;
+                    StatusText = "USB disconnected — WebSocket mode";
+                    WsService.Send(new { type = "usb_disconnected" });
+                    break;
+
+                // WebRTC signaling — forwarded by server; no local processing needed
+                case "webrtc_offer":
+                case "webrtc_answer":
+                case "webrtc_ice":
+                    break;
+
+                case "sms_received":
                 case "photo_list":
-                    // Phone is pushing photo list
                     break;
             }
         }
@@ -327,19 +387,19 @@ namespace NexLink.ViewModels
         }
 
         /// <summary>
-        /// Generates QR with BOTH local IP and relay pairId.
-        /// Android app will try local first, then fall back to relay.
+        /// Generates QR code for cloud-only pairing.
+        /// Payload: { userId, deviceId, deviceName, pairId, relayUrl }
+        /// Android scans this and connects directly to the Render relay.
         /// </summary>
-        public void GenerateQRCode(string ip, int port, string deviceName, string token)
+        public void GenerateQRCode(string userId, string deviceId, string deviceName)
         {
             var payload = JsonConvert.SerializeObject(new
             {
-                ip,
-                port,
+                userId,
+                deviceId,
                 deviceName,
-                sessionToken = token,
-                pairId = _pairId,
-                relayUrl = Services.WebSocketService.RelayServerUrl
+                pairId   = _pairId,
+                relayUrl = WebSocketService.RelayServerUrl,
             });
             QrCodeImage = QRCodeService.GenerateQRCode(payload, pixelSize: 8);
         }

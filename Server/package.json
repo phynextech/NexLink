@@ -1,22 +1,24 @@
 {
   "name": "nexlink-relay-server",
-  "version": "1.0.0",
-  "description": "NexLink Cloud Relay Server - bridges Windows PC and Android across any network",
-  "main": "server.js",
+  "version": "2.0.0",
+  "description": "NexLink Cloud Relay Server — Socket.IO + Firebase Auth + Realtime DB",
+  "main": "server/index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "firebase-admin": "^12.0.0",
-    "uuid": "^9.0.0",
-    "ws": "^8.16.0",
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "firebase-admin": "^12.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.0",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"

@@ -1,303 +1,303 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using NexLink.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using WebSocketSharp;
-using WebSocketSharp.Server;
+using SocketIOClient;
+using SocketIOClient.Transport;
 
 namespace NexLink.Services
 {
     /// <summary>
-    /// Handles both LOCAL (LAN) and RELAY (cross-network) WebSocket connections.
+    /// NexLink WebSocket/Socket.IO Service — cloud-only architecture.
     ///
-    /// Modes:
-    ///   LOCAL  — Acts as WS server on LAN port 8765 (same WiFi network)
-    ///   RELAY  — Connects to cloud relay server as "desktop" client (any network)
+    /// Replaces the old WebSocketSharp dual-mode (local + relay) with a
+    /// single Socket.IO client that always connects to the Render relay server.
     ///
-    /// When RELAY is active, all messages are transparently forwarded through
-    /// the relay server to the Android phone, regardless of network.
+    /// Connection flow:
+    ///   1. ConnectToRelay(userId, deviceId, firebaseToken)
+    ///   2. On connect: emit "connect_device" { userId, deviceId, role="desktop" }
+    ///   3. Server places this socket in room userId:deviceId
+    ///   4. All events are forwarded transparently to the Android phone
+    ///   5. On disconnect: SocketIOClient auto-reconnects every 5 seconds
     /// </summary>
     public class WebSocketService
     {
-        // ─── Relay Server URL ─────────────────────────────────────────────────
-        public const string RelayServerUrl = "wss://nexlink-relay.onrender.com/relay";
+        // ─── Relay Server URL ─────────────────────────────────────────────
+        public const string RelayServerUrl = "https://nexlink-khhe.onrender.com";
 
-        private WebSocketServer? _localServer;
-        private LinkBridgeBehavior? _activeBehavior;
+        private SocketIOClient.SocketIO? _socket;
+        private string _userId   = "";
+        private string _deviceId = "";
+        private bool _isConnecting = false;
         private readonly object _lock = new();
-        private Timer? _heartbeatTimer;
 
-        // Relay client (used when connecting through internet)
-        private WebSocket? _relayClient;
-        private bool _isRelayMode = false;
-        private string _pairId = "";
-        private CancellationTokenSource _relayCts = new();
-
-        // Sequential send queue prevents pipe overload from concurrent sends
+        // Sequential send queue — prevents flooding during reconnect bursts
         private readonly ConcurrentQueue<string> _sendQueue = new();
-        private Task? _sendTask;
         private CancellationTokenSource _sendCts = new();
+        private bool _sendLoopRunning = false;
 
+        // ─── Events ───────────────────────────────────────────────────────
         public event Action<JObject>? MessageReceived;
-        public event Action? PhoneConnected;
-        public event Action? PhoneDisconnected;
-        
-        private bool _isRelayPeerOnline = false;
-        public bool IsPhoneConnected => (_activeBehavior?.State == WebSocketState.Open) || _isRelayPeerOnline;
-        
-        public bool IsRelayMode => _isRelayMode;
-        public string CurrentPairId => _pairId;
+        public event Action?          PhoneConnected;
+        public event Action?          PhoneDisconnected;
 
-        // ─── LOCAL mode ───────────────────────────────────────────────────────
-        public void Start(int port)
-        {
-            _localServer = new WebSocketServer($"ws://0.0.0.0:{port}");
-            _localServer.KeepClean = false;
-            _localServer.WaitTime = TimeSpan.FromSeconds(60);
+        private bool _isPhoneOnline = false;
+        public  bool IsPhoneConnected => _isPhoneOnline;
+        public  bool IsSocketConnected => _socket?.Connected ?? false;
 
-            _localServer.AddWebSocketService<LinkBridgeBehavior>("/", b =>
-            {
-                b.MessageReceived += OnMessage;
-                b.Connected += () =>
-                {
-                    lock (_lock) { _activeBehavior = b; }
-                    ResetSendQueue();
-                    PhoneConnected?.Invoke();
-                    StartHeartbeat();
-                };
-                b.Disconnected += () =>
-                {
-                    lock (_lock)
-                    {
-                        if (_activeBehavior == b) { _activeBehavior = null; }
-                    }
-                    StopHeartbeat();
-                    if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
-                };
-            });
-            _localServer.Start();
-        }
-
-        // ─── RELAY mode ───────────────────────────────────────────────────────
+        // ─── Connect ──────────────────────────────────────────────────────
         /// <summary>
-        /// Connect this desktop to the relay server using a shared pairId.
-        /// The Android phone connects with the same pairId as "mobile".
-        /// All messages are forwarded transparently.
+        /// Connect this desktop to the Render relay server as role "desktop".
         /// </summary>
-        public void StartRelay(string pairId)
+        public void ConnectToRelay(string userId, string deviceId, string firebaseToken = "")
         {
-            _isRelayMode = true;
-            _pairId = pairId;
-            _relayCts = new CancellationTokenSource();
+            lock (_lock)
+            {
+                if (_isConnecting) return;
+                _isConnecting = true;
+            }
 
-            var url = $"{RelayServerUrl}?pairId={pairId}&role=desktop";
-            ConnectRelayClient(url, _relayCts.Token);
+            _userId   = userId;
+            _deviceId = deviceId;
+
+            Task.Run(() => BuildAndConnect(firebaseToken));
         }
 
-        private void ConnectRelayClient(string url, CancellationToken token)
+        private async Task BuildAndConnect(string token)
         {
-            if (token.IsCancellationRequested) return;
+            _socket?.DisconnectAsync();
 
-            _relayClient = new WebSocket(url);
-            _relayClient.WaitTime = TimeSpan.FromSeconds(60);
-
-            _relayClient.OnOpen += (_, _) =>
+            var options = new SocketIOOptions
             {
-                Console.WriteLine($"[Relay] Connected as desktop, pairId={_pairId}");
-                ResetSendQueue();
-                StartHeartbeat();
+                Transport           = TransportProtocol.WebSocket,
+                ReconnectionDelay   = 5000,
+                ReconnectionDelayMax = 5000,
+                Reconnection        = true,
+                Auth                = new { token, userId = _userId },
             };
 
-            _relayClient.OnMessage += (_, e) =>
+            _socket = new SocketIOClient.SocketIO(RelayServerUrl, options);
+
+            // ── Connect ───────────────────────────────────────────────────
+            _socket.OnConnected += async (_, _) =>
             {
-                try
+                Console.WriteLine($"[Socket.IO] Connected as desktop  id={_socket.Id}");
+                StartSendLoop();
+
+                // Register in room
+                await _socket.EmitAsync("connect_device", new
                 {
-                    var json = JObject.Parse(e.Data);
-                    var type = json["type"]?.ToString() ?? "";
-
-                    if (type == "ping") { SendRaw("{\"type\":\"pong\"}"); return; }
-                    if (type == "pong") return;
-
-                    if (type == "relay_peer_online")
-                    {
-                        if (!_isRelayPeerOnline)
-                        {
-                            _isRelayPeerOnline = true;
-                            PhoneConnected?.Invoke();
-                        }
-                        return;
-                    }
-
-                    if (type == "relay_peer_offline")
-                    {
-                        if (_isRelayPeerOnline)
-                        {
-                            _isRelayPeerOnline = false;
-                            StopHeartbeat();
-                            if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
-                        }
-                        return;
-                    }
-
-                    OnMessage(json);
-                }
-                catch { }
+                    userId     = _userId,
+                    deviceId   = _deviceId,
+                    role       = "desktop",
+                    deviceName = Environment.MachineName,
+                });
             };
 
-            _relayClient.OnClose += (_, e) =>
+            // ── Disconnect ────────────────────────────────────────────────
+            _socket.OnDisconnected += (_, reason) =>
             {
-                Console.WriteLine($"[Relay] Connection closed: {e.Reason}");
-                _isRelayPeerOnline = false;
-                StopHeartbeat();
-                if (!IsPhoneConnected) PhoneDisconnected?.Invoke();
+                Console.WriteLine($"[Socket.IO] Disconnected: {reason}");
+                _isPhoneOnline = false;
+                PhoneDisconnected?.Invoke();
+                _sendCts.Cancel();
+            };
 
-                // Auto-reconnect with exponential backoff
-                if (!token.IsCancellationRequested)
+            // ── Reconnect ─────────────────────────────────────────────────
+            _socket.OnReconnected += (_, attempt) =>
+            {
+                Console.WriteLine($"[Socket.IO] Reconnected (attempt {attempt})");
+                _socket.EmitAsync("connect_device", new
                 {
-                    Task.Delay(5000, token).ContinueWith(_ =>
-                    {
-                        if (!token.IsCancellationRequested)
-                            ConnectRelayClient(url, token);
-                    }, token);
-                }
+                    userId     = _userId,
+                    deviceId   = _deviceId,
+                    role       = "desktop",
+                    deviceName = Environment.MachineName,
+                });
             };
 
-            _relayClient.OnError += (_, e) =>
+            _socket.OnError += (_, e) =>
             {
-                Console.WriteLine($"[Relay] Error: {e.Message}");
+                Console.WriteLine($"[Socket.IO] Error: {e}");
             };
 
-            _relayClient.Connect();
+            // ── Peer presence ─────────────────────────────────────────────
+            _socket.On("peer_online", _ =>
+            {
+                if (!_isPhoneOnline)
+                {
+                    _isPhoneOnline = true;
+                    PhoneConnected?.Invoke();
+                }
+            });
+
+            _socket.On("peer_offline", _ =>
+            {
+                if (_isPhoneOnline)
+                {
+                    _isPhoneOnline = false;
+                    PhoneDisconnected?.Invoke();
+                }
+            });
+
+            _socket.On("device_registered", data =>
+            {
+                Console.WriteLine($"[Socket.IO] Registered in room: {data}");
+            });
+
+            // ── Register all relayed events ───────────────────────────────
+            RegisterRelayedEvents();
+
+            // ── Connect ───────────────────────────────────────────────────
+            try
+            {
+                await _socket.ConnectAsync();
+                lock (_lock) { _isConnecting = false; }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Socket.IO] Initial connect failed: {ex.Message}");
+                lock (_lock) { _isConnecting = false; }
+            }
         }
 
-        // ─── Shared internals ─────────────────────────────────────────────────
-        private void ResetSendQueue()
+        /// <summary>
+        /// Register a handler for each event type the phone might send.
+        /// The handler parses the payload and fires MessageReceived.
+        /// </summary>
+        private void RegisterRelayedEvents()
         {
-            while (_sendQueue.TryDequeue(out _)) { }
-            _sendCts.Cancel();
+            if (_socket == null) return;
+
+            var events = new[]
+            {
+                "handshake", "request_info", "get_wallpaper",
+                "volume", "brightness", "lock_pc",
+                "media_control", "media_seek",
+                "app_list", "launch_app",
+                "browse", "open_file", "download_file",
+                "clipboard_push", "clipboard_pull", "clipboard_sync",
+                "start_screen", "stop_screen",
+                "start_camera", "stop_camera",
+                "notification", "send_notification",
+                "sms_send",
+                "webrtc_offer", "webrtc_answer", "webrtc_ice",
+                // USB / mouse control
+                "mouse_move", "mouse_tap", "mouse_right_tap", "mouse_scroll",
+                "usb_connected", "usb_disconnected",
+            };
+
+            foreach (var ev in events)
+            {
+                var eventName = ev; // capture for closure
+                _socket.On(eventName, response =>
+                {
+                    try
+                    {
+                        JObject msg;
+                        var raw = response.GetValue<string>(0);
+                        if (raw != null)
+                        {
+                            msg = JObject.Parse(raw);
+                        }
+                        else
+                        {
+                            // Try object directly
+                            msg = response.GetValue<JObject>(0) ?? new JObject();
+                        }
+
+                        if (!msg.ContainsKey("type"))
+                            msg["type"] = eventName;
+
+                        MessageReceived?.Invoke(msg);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[Socket.IO] Parse error on '{eventName}': {ex.Message}");
+                    }
+                });
+            }
+        }
+
+        // ─── Send API ─────────────────────────────────────────────────────
+
+        /// <summary>Send any object as the matching Socket.IO event (keyed by "type" field).</summary>
+        public void Send(object payload)
+        {
+            var json = JsonConvert.SerializeObject(payload);
+            _sendQueue.Enqueue(json);
+        }
+
+        public void SendRaw(string json) => _sendQueue.Enqueue(json);
+
+        private void StartSendLoop()
+        {
+            if (_sendLoopRunning) { _sendCts.Cancel(); }
             _sendCts = new CancellationTokenSource();
-            StartSendLoop(_sendCts.Token);
-        }
+            _sendLoopRunning = true;
 
-        private void StartSendLoop(CancellationToken token)
-        {
-            _sendTask = Task.Run(async () =>
+            Task.Run(async () =>
             {
+                var token = _sendCts.Token;
                 while (!token.IsCancellationRequested)
                 {
-                    if (_sendQueue.TryDequeue(out var msg))
+                    if (_sendQueue.TryDequeue(out var json))
                     {
                         try
                         {
-                            // Send via relay client if available
-                            if (_relayClient?.ReadyState == WebSocketState.Open)
-                            {
-                                _relayClient.Send(msg);
-                            }
-                            
-                            // Send via local client if available
-                            LinkBridgeBehavior? beh;
-                            lock (_lock) { beh = _activeBehavior; }
-                            beh?.SendMessage(msg);
+                            var msg = JObject.Parse(json);
+                            var eventType = msg["type"]?.ToString() ?? "message";
+                            // Remove "type" from the data payload to keep event args clean
+                            msg.Remove("type");
 
-                            await Task.Delay(20, token);
+                            if (_socket?.Connected == true)
+                                await _socket.EmitAsync(eventType, msg);
+
+                            await Task.Delay(15, token);
                         }
-                        catch { }
+                        catch (OperationCanceledException) { break; }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[SendLoop] Error: {ex.Message}");
+                        }
                     }
                     else
                     {
                         await Task.Delay(10, token);
                     }
                 }
-            }, token);
+                _sendLoopRunning = false;
+            }, _sendCts.Token);
         }
 
-        private void StartHeartbeat()
+        // ─── Stop ─────────────────────────────────────────────────────────
+        public async Task StopAsync()
         {
-            StopHeartbeat();
-            _heartbeatTimer = new Timer(_ =>
-            {
-                try { Enqueue("{\"type\":\"ping\"}"); }
-                catch { }
-            }, null, 20000, 20000);
-        }
-
-        private void StopHeartbeat()
-        {
-            _heartbeatTimer?.Dispose();
-            _heartbeatTimer = null;
-        }
-
-        private void OnMessage(JObject msg) => MessageReceived?.Invoke(msg);
-        private void Enqueue(string json) => _sendQueue.Enqueue(json);
-
-        public void Send(object payload)
-        {
-            var json = JsonConvert.SerializeObject(payload);
-            Enqueue(json);
-        }
-
-        public void SendRaw(string json) => Enqueue(json);
-
-        public void Stop()
-        {
-            StopHeartbeat();
             _sendCts.Cancel();
-            _relayCts.Cancel();
-            _relayClient?.Close();
-            _localServer?.Stop();
+            if (_socket != null)
+                await _socket.DisconnectAsync();
         }
 
-        // ─── Network helpers ──────────────────────────────────────────────────
+        public void Stop() => StopAsync().GetAwaiter().GetResult();
+
+        // ─── Network helpers (kept for WiFi SSID / system info) ───────────
         public static string GetLocalIPAddress()
         {
             try
             {
-                using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0);
+                using var socket = new System.Net.Sockets.Socket(
+                    System.Net.Sockets.AddressFamily.InterNetwork,
+                    System.Net.Sockets.SocketType.Dgram, 0);
                 socket.Connect("8.8.8.8", 65530);
-                var endPoint = socket.LocalEndPoint as IPEndPoint;
-                if (endPoint != null) return endPoint.Address.ToString();
+                var ep = socket.LocalEndPoint as System.Net.IPEndPoint;
+                if (ep != null) return ep.Address.ToString();
             }
             catch { }
-
-            return GetAllLocalIPs().FirstOrDefault(ip => !ip.StartsWith("169.") && ip != "127.0.0.1") ?? "127.0.0.1";
-        }
-
-        public static List<string> GetAllLocalIPs()
-        {
-            var ips = new List<string>();
-            try
-            {
-                var interfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
-                foreach (var ni in interfaces)
-                {
-                    if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
-                    if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
-                    var name = ni.Name.ToLower();
-                    if (name.Contains("virtual") || name.Contains("vmware") || name.Contains("loopback") ||
-                        name.Contains("pseudo") || name.Contains("tunnel") || name.Contains("vethernet")) continue;
-
-                    foreach (var ua in ni.GetIPProperties().UnicastAddresses)
-                    {
-                        if (ua.Address.AddressFamily == AddressFamily.InterNetwork)
-                        {
-                            var ip = ua.Address.ToString();
-                            if (ip != "127.0.0.1" && !ip.StartsWith("169."))
-                                ips.Add(ip);
-                        }
-                    }
-                }
-            }
-            catch { }
-            return ips;
+            return "127.0.0.1";
         }
 
         public static string GetWifiSSID()
@@ -308,23 +308,22 @@ namespace NexLink.Services
                 {
                     StartInfo = new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = "netsh",
-                        Arguments = "wlan show interfaces",
+                        FileName               = "netsh",
+                        Arguments              = "wlan show interfaces",
                         RedirectStandardOutput = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
+                        UseShellExecute        = false,
+                        CreateNoWindow         = true,
                     }
                 };
                 proc.Start();
                 var output = proc.StandardOutput.ReadToEnd();
                 proc.WaitForExit();
-
                 foreach (var line in output.Split('\n'))
                 {
-                    var trimmed = line.Trim();
-                    if (trimmed.StartsWith("SSID") && !trimmed.Contains("BSSID"))
+                    var t = line.Trim();
+                    if (t.StartsWith("SSID") && !t.Contains("BSSID"))
                     {
-                        var parts = trimmed.Split(':', 2);
+                        var parts = t.Split(':', 2);
                         if (parts.Length >= 2)
                         {
                             var ssid = parts[1].Trim();
@@ -335,39 +334,6 @@ namespace NexLink.Services
             }
             catch { }
             return "Unknown";
-        }
-    }
-
-    // ─── Local WebSocket behavior (LAN mode only) ──────────────────────────
-    public class LinkBridgeBehavior : WebSocketBehavior
-    {
-        public event Action<JObject>? MessageReceived;
-        public event Action? Connected;
-        public event Action? Disconnected;
-
-        protected override void OnOpen() => Connected?.Invoke();
-
-        protected override void OnMessage(MessageEventArgs e)
-        {
-            try
-            {
-                var json = JObject.Parse(e.Data);
-                if (json["type"]?.ToString() == "pong") return;
-                MessageReceived?.Invoke(json);
-            }
-            catch { }
-        }
-
-        protected override void OnClose(CloseEventArgs e) => Disconnected?.Invoke();
-        protected override void OnError(WebSocketSharp.ErrorEventArgs e) => Disconnected?.Invoke();
-
-        public void SendMessage(string json)
-        {
-            if (State == WebSocketState.Open)
-            {
-                try { Send(json); }
-                catch { }
-            }
         }
     }
 }

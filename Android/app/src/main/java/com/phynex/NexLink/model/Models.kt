@@ -1,12 +1,11 @@
 package com.phynex.NexLink.model
 
 data class DeviceInfo(
-    val ip: String,
-    val port: Int,
+    val userId: String,
+    val deviceId: String,
     val deviceName: String,
-    val sessionToken: String,
-    val pairId: String = "",          // Cloud relay pair ID
-    val relayUrl: String = ""         // wss://nexlink-relay.onrender.com/relay
+    val pairId: String,
+    val relayUrl: String = "https://nexlink-khhe.onrender.com"
 )
 
 data class WifiInfo(
