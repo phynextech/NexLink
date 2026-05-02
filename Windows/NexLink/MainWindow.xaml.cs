@@ -33,7 +33,6 @@ namespace NexLink
         {
             StartServer();
             await InitRelayPairingAsync();
-            GenerateQR();
             PopulateAppsTab();
         }
 
@@ -44,12 +43,17 @@ namespace NexLink
                 // Load or create persistent device identity for this PC
                 (_userId, _deviceId) = PairingService.LoadOrCreateIdentity();
 
+                // Show QR immediately with empty pairId so user sees something
+                GenerateQR();
+
                 // Register device on the relay server and get a pairId
                 var pairId = await PairingService.GetOrCreatePairIdAsync(_userId, _deviceId, Environment.MachineName);
                 if (!string.IsNullOrEmpty(pairId))
                 {
                     _vm.SetPairId(pairId);
-                    // Connect to relay as "desktop" — no local LAN server
+                    // Regenerate QR now that pairId is available
+                    GenerateQR();
+                    // Connect to relay as "desktop"
                     _vm.WsService.ConnectToRelay(_userId, _deviceId);
                     StatusBar.Text = $"Cloud relay connected • Device: {_deviceId[..8]}…";
                 }
@@ -57,6 +61,9 @@ namespace NexLink
             catch (Exception ex)
             {
                 StatusBar.Text = $"Relay unavailable: {ex.Message}";
+                // Still connect without pairId — room key is userId:deviceId
+                if (!string.IsNullOrEmpty(_userId))
+                    _vm.WsService.ConnectToRelay(_userId, _deviceId);
             }
         }
 
