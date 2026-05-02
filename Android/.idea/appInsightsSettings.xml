@@ -9,7 +9,7 @@
               <option name="connection">
                 <ConnectionSetting>
                   <option name="appId" value="com.phynex.NexLink" />
-                  <option name="mobileSdkAppId" value="1:496826457204:android:0fb1c68fbb75cccd540521" />
+                  <option name="mobileSdkAppId" value="1:496826457204:android:73ac9987c90b1bbc540521" />
                   <option name="projectId" value="nexlink-62e41" />
                   <option name="projectNumber" value="496826457204" />
                 </ConnectionSetting>

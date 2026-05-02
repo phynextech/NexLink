@@ -198,17 +198,23 @@ namespace NexLink.Services
                 {
                     try
                     {
-                        JObject msg;
-                        var raw = response.GetValue<string>(0);
-                        if (raw != null)
+                        JObject? msg = null;
+                        
+                        // Try getting as JObject directly (standard for Socket.IO object emits)
+                        try { msg = response.GetValue<JObject>(0); } catch { }
+
+                        if (msg == null)
                         {
-                            msg = JObject.Parse(raw);
+                            // Try getting as string and parsing (fallback)
+                            try 
+                            { 
+                                var raw = response.GetValue<string>(0);
+                                if (!string.IsNullOrWhiteSpace(raw))
+                                    msg = JObject.Parse(raw);
+                            } catch { }
                         }
-                        else
-                        {
-                            // Try object directly
-                            msg = response.GetValue<JObject>(0) ?? new JObject();
-                        }
+
+                        if (msg == null) msg = new JObject();
 
                         if (!msg.ContainsKey("type"))
                             msg["type"] = eventName;

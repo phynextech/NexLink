@@ -53,6 +53,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Connection State
     val isConnected: StateFlow<Boolean> = socketClient.isConnected
+    val isPeerOnline: StateFlow<Boolean> = socketClient.isPeerOnline
     val connectionMode: StateFlow<String> = socketClient.connectionMode
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -268,7 +269,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeConnection() {
         viewModelScope.launch {
-            socketClient.isConnected.collect { connected ->
+            combine(socketClient.isConnected, socketClient.isPeerOnline) { relay, peer ->
+                relay && peer
+            }.collect { connected ->
                 _connectionState.value = if (connected) ConnectionState.CONNECTED
                                          else          ConnectionState.DISCONNECTED
             }

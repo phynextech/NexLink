@@ -43,6 +43,9 @@ class NexLinkSocketClient {
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
 
+    private val _isPeerOnline = MutableStateFlow(false)
+    val isPeerOnline: StateFlow<Boolean> = _isPeerOnline
+
     private val _connectionMode = MutableStateFlow("Disconnected")
     val connectionMode: StateFlow<String> = _connectionMode
 
@@ -75,7 +78,8 @@ class NexLinkSocketClient {
         isManualDisconnect = true
         socket?.disconnect()
         socket = null
-        _isConnected.value   = false
+        _isConnected.value    = false
+        _isPeerOnline.value   = false
         _connectionMode.value = "Disconnected"
     }
 
@@ -139,7 +143,8 @@ class NexLinkSocketClient {
             sock.on(Socket.EVENT_DISCONNECT) { args ->
                 val reason = args?.firstOrNull()?.toString() ?: "unknown"
                 Log.w(TAG, "Disconnected: $reason")
-                _isConnected.value   = false
+                _isConnected.value    = false
+                _isPeerOnline.value   = false
                 _connectionMode.value = "Reconnecting…"
                 // Socket.IO handles auto-reconnect via setReconnection(true)
             }
@@ -147,16 +152,19 @@ class NexLinkSocketClient {
             sock.on(Socket.EVENT_CONNECT_ERROR) { args ->
                 val err = args?.firstOrNull()?.toString() ?: "unknown"
                 Log.e(TAG, "Connect error: $err")
-                _isConnected.value   = false
+                _isConnected.value    = false
+                _isPeerOnline.value   = false
                 _connectionMode.value = "Connection Error"
             }
 
             sock.on("peer_online") { _ ->
                 Log.d(TAG, "Peer (laptop) came online")
+                _isPeerOnline.value = true
             }
 
             sock.on("peer_offline") { _ ->
                 Log.d(TAG, "Peer (laptop) went offline")
+                _isPeerOnline.value = false
             }
 
             sock.on("device_registered") { args ->
