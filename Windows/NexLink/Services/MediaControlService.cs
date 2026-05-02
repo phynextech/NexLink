@@ -37,16 +37,18 @@ namespace NexLink.Services
         }
 
         // Get currently playing media via SMTC
-        public static async Task<(string title, string artist, string? albumArtBase64, bool isPlaying)> GetNowPlayingAsync()
+        public static async Task<(string title, string artist, string? albumArtBase64, bool isPlaying, double positionSec, double durationSec)> GetNowPlayingAsync()
         {
             try
             {
                 var sessionManager = await Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
                 var session = sessionManager.GetCurrentSession();
-                if (session == null) return ("Nothing Playing", "", null, false);
+                if (session == null) return ("Nothing Playing", "", null, false, 0, 0);
 
                 var info = await session.TryGetMediaPropertiesAsync();
                 var pb = session.GetPlaybackInfo();
+                var tl = session.GetTimelineProperties();
+                
                 string? albumArtB64 = null;
 
                 if (info.Thumbnail != null)
@@ -60,12 +62,26 @@ namespace NexLink.Services
                 bool isPlaying = pb.PlaybackStatus ==
                     Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 
-                return (info.Title ?? "Unknown", info.Artist ?? "Unknown", albumArtB64, isPlaying);
+                return (info.Title ?? "Unknown", info.Artist ?? "Unknown", albumArtB64, isPlaying, tl.Position.TotalSeconds, tl.EndTime.TotalSeconds);
             }
             catch
             {
-                return ("Not Playing", "", null, false);
+                return ("Not Playing", "", null, false, 0, 0);
             }
+        }
+
+        public static async Task SetPlaybackPositionAsync(double positionSec)
+        {
+            try
+            {
+                var sessionManager = await Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                var session = sessionManager.GetCurrentSession();
+                if (session != null)
+                {
+                    await session.TryChangePlaybackPositionAsync((long)(positionSec * 10000000)); // TimeSpan ticks (1 tick = 100 ns)
+                }
+            }
+            catch { }
         }
     }
 }

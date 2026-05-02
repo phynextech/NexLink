@@ -29,7 +29,9 @@ data class NowPlaying(
     val title: String,
     val artist: String,
     val albumArtBase64: String?,
-    val isPlaying: Boolean
+    val isPlaying: Boolean,
+    val position: Double = 0.0,
+    val duration: Double = 0.0
 )
 
 data class AppItem(

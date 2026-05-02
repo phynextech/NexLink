@@ -154,6 +154,9 @@ namespace NexLink.ViewModels
                 case "media_control":
                     MediaControlService.SendMediaKey(msg["action"]?.ToString() ?? "play_pause");
                     break;
+                case "media_seek":
+                    _ = MediaControlService.SetPlaybackPositionAsync(msg["position"]?.ToObject<double>() ?? 0);
+                    break;
                 case "app_list":
                     SendAppList();
                     break;
@@ -304,7 +307,7 @@ namespace NexLink.ViewModels
                 {
                     if (IsConnected)
                     {
-                        var (title, artist, albumArt, isPlaying) = await MediaControlService.GetNowPlayingAsync();
+                        var (title, artist, albumArt, isPlaying, pos, dur) = await MediaControlService.GetNowPlayingAsync();
                         NowPlayingTitle = title;
                         NowPlayingArtist = artist;
                         WsService.Send(new
@@ -313,10 +316,12 @@ namespace NexLink.ViewModels
                             title,
                             artist,
                             album_art_base64 = albumArt,
-                            isPlaying
+                            isPlaying,
+                            position = pos,
+                            duration = dur
                         });
                     }
-                    await Task.Delay(5000);
+                    await Task.Delay(1000);
                 }
             });
         }

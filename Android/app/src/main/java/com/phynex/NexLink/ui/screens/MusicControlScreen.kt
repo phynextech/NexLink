@@ -1,4 +1,4 @@
-﻿package com.phynex.NexLink.ui.screens
+package com.phynex.NexLink.ui.screens
 
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -76,50 +76,33 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(40.dp))
 
-            // Album art disc with vinyl style
+            // Album art poster
             Box(
-                modifier = Modifier.size(280.dp),
+                modifier = Modifier
+                    .size(320.dp)
+                    .shadow(24.dp, RoundedCornerShape(32.dp))
+                    .background(Color(0xFF111111), RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                // Vinyl record background
-                Box(
-                    Modifier.fillMaxSize()
-                        .background(Color(0xFF111111), CircleShape)
-                        .border(12.dp, Color(0xFF222222), CircleShape)
-                )
-                
-                // Animated spinning part
-                Box(
-                    Modifier.size(260.dp)
-                        .rotate(if (nowPlaying?.isPlaying == true) rotation else 0f)
-                ) {
-                    nowPlaying?.albumArtBase64?.let { b64 ->
-                        runCatching {
-                            val bytes = Base64.decode(b64, Base64.DEFAULT)
-                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                        }.getOrNull()?.let { bmp ->
-                            Image(
-                                bmp.asImageBitmap(),
-                                "Album Art",
-                                Modifier.fillMaxSize().padding(10.dp).clip(CircleShape),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
-                    } ?: Box(
-                        modifier = Modifier.fillMaxSize().padding(10.dp)
-                            .background(Brush.radialGradient(listOf(primary, background)), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(80.dp))
+                nowPlaying?.albumArtBase64?.let { b64 ->
+                    runCatching {
+                        val bytes = Base64.decode(b64, Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    }.getOrNull()?.let { bmp ->
+                        Image(
+                            bmp.asImageBitmap(),
+                            "Album Art",
+                            Modifier.fillMaxSize().clip(RoundedCornerShape(32.dp)),
+                            contentScale = ContentScale.Crop
+                        )
                     }
-
-                    // Center hole highlight
-                    Box(
-                        Modifier.size(40.dp)
-                            .align(Alignment.Center)
-                            .background(Color(0xFF111111), CircleShape)
-                            .border(2.dp, Color.White.copy(0.1f), CircleShape)
-                    )
+                } ?: Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(listOf(primary.copy(0.7f), background)), RoundedCornerShape(32.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(120.dp))
                 }
             }
 
@@ -147,10 +130,21 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(40.dp))
 
-            // Progress bar (dummy for now)
+            // Real-time Progress bar
             Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
+                val position = nowPlaying?.position ?: 0.0
+                val duration = nowPlaying?.duration ?: 0.0
+                val progress = if (duration > 0) (position / duration).toFloat() else 0f
+
+                var sliderValue by remember(progress) { mutableStateOf(progress) }
+
                 Slider(
-                    value = 0.3f, onValueChange = {},
+                    value = sliderValue,
+                    onValueChange = { sliderValue = it },
+                    onValueChangeFinished = {
+                        val newPosition = (sliderValue * duration).toDouble()
+                        viewModel.seekMedia(newPosition)
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
                         thumbColor = primary,
@@ -158,9 +152,16 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         inactiveTrackColor = primary.copy(0.2f)
                     )
                 )
+                
+                fun formatTime(seconds: Double): String {
+                    val m = (seconds / 60).toInt()
+                    val s = (seconds % 60).toInt()
+                    return String.format("%d:%02d", m, s)
+                }
+
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("1:04", style = MaterialTheme.typography.labelSmall, color = outline)
-                    Text("3:45", style = MaterialTheme.typography.labelSmall, color = outline)
+                    Text(formatTime(position), style = MaterialTheme.typography.labelSmall, color = outline)
+                    Text(formatTime(duration), style = MaterialTheme.typography.labelSmall, color = outline)
                 }
             }
 

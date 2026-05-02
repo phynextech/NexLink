@@ -211,7 +211,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 title = json.get("title")?.asString ?: "Unknown",
                 artist = json.get("artist")?.asString ?: "Unknown",
                 albumArtBase64 = json.get("album_art_base64")?.asString,
-                isPlaying = json.get("isPlaying")?.asBoolean ?: false
+                isPlaying = json.get("isPlaying")?.asBoolean ?: false,
+                position = json.get("position")?.asDouble ?: 0.0,
+                duration = json.get("duration")?.asDouble ?: 0.0
             )
         }
 
@@ -404,6 +406,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMediaControl(action: String) {
         webSocket.sendMessage(mapOf("type" to "media_control", "action" to action))
+    }
+
+    fun seekMedia(positionSec: Double) {
+        webSocket.sendMessage(mapOf("type" to "media_seek", "position" to positionSec))
+        // Optimistically update local state to avoid UI jitter
+        val current = _nowPlaying.value
+        if (current != null) {
+            _nowPlaying.value = current.copy(position = positionSec)
+        }
     }
 
     fun sendVolume(level: Int) {
