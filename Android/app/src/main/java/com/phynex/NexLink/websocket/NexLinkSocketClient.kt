@@ -182,7 +182,11 @@ class NexLinkSocketClient {
                     }
                     if (!jsonObj.has("type")) jsonObj.addProperty("type", event)
                     _lastMessage.value = jsonObj
-                    listeners[event]?.invoke(jsonObj)
+                    try {
+                        listeners[event]?.invoke(jsonObj)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Listener crash for event '$event': ${e.message}")
+                    }
                 }
             }
 

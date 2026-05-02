@@ -8,7 +8,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+
+// ── Safe JSON helpers (guard against JsonArray instead of JsonPrimitive) ───
+private fun JsonObject.safeStr(key: String, default: String = ""): String =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asString ?: default } catch (_: Exception) { default }
+private fun JsonObject.safeStr(key: String): String? =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asString } catch (_: Exception) { null }
+private fun JsonObject.safeInt(key: String, default: Int = 0): Int =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asInt ?: default } catch (_: Exception) { default }
+private fun JsonObject.safeBool(key: String, default: Boolean = false): Boolean =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asBoolean ?: default } catch (_: Exception) { default }
+private fun JsonObject.safeDouble(key: String, default: Double = 0.0): Double =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asDouble ?: default } catch (_: Exception) { default }
+private fun JsonObject.safeFloat(key: String, default: Float = 0f): Float =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asFloat ?: default } catch (_: Exception) { default }
+private fun JsonObject.safeLong(key: String, default: Long = 0L): Long =
+    try { get(key)?.takeIf { it.isJsonPrimitive }?.asLong ?: default } catch (_: Exception) { default }
 import com.phynex.NexLink.model.*
 import com.phynex.NexLink.service.LinkBridgeNotificationService
 import com.phynex.NexLink.service.SmsReceiver
@@ -261,84 +278,90 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupSocketListeners() {
         socketClient.addListener("wifi_info") { json ->
             _wifiInfo.value = WifiInfo(
-                ssid     = json.get("ssid")?.asString ?: "Unknown",
-                strength = json.get("strength")?.asInt ?: 0
+                ssid     = json.safeStr("ssid", "Unknown"),
+                strength = json.safeInt("strength")
             )
         }
 
         socketClient.addListener("battery_info") { json ->
             _batteryInfo.value = BatteryInfo(
-                level      = json.get("level")?.asInt ?: 0,
-                isCharging = json.get("isCharging")?.asBoolean ?: false
+                level      = json.safeInt("level"),
+                isCharging = json.safeBool("isCharging")
             )
         }
 
         socketClient.addListener("bt_info") { json ->
-            val devices = json.getAsJsonArray("devices")?.map { d ->
-                val obj = d.asJsonObject
-                BluetoothDevice(
-                    name    = obj.get("name")?.asString ?: "Unknown",
-                    address = obj.get("address")?.asString ?: "",
-                    type    = obj.get("type")?.asString ?: "Unknown"
-                )
+            val devices = json.getAsJsonArray("devices")?.mapNotNull { d ->
+                try {
+                    val obj = d.asJsonObject
+                    BluetoothDevice(
+                        name    = obj.safeStr("name", "Unknown"),
+                        address = obj.safeStr("address", ""),
+                        type    = obj.safeStr("type", "Unknown")
+                    )
+                } catch (_: Exception) { null }
             } ?: emptyList()
             _bluetoothDevices.value = devices
         }
 
         socketClient.addListener("wallpaper") { json ->
-            _wallpaperBase64.value = json.get("data")?.asString
+            _wallpaperBase64.value = json.safeStr("data")
         }
 
         socketClient.addListener("volume") { json ->
-            json.get("level")?.asInt?.let { _volume.value = it }
+            _volume.value = json.safeInt("level", _volume.value)
         }
 
         socketClient.addListener("brightness") { json ->
-            json.get("level")?.asInt?.let { _brightness.value = it }
+            _brightness.value = json.safeInt("level", _brightness.value)
         }
 
         socketClient.addListener("now_playing") { json ->
             _nowPlaying.value = NowPlaying(
-                title          = json.get("title")?.asString ?: "Unknown",
-                artist         = json.get("artist")?.asString ?: "Unknown",
-                albumArtBase64 = json.get("album_art_base64")?.asString,
-                isPlaying      = json.get("isPlaying")?.asBoolean ?: false,
-                position       = json.get("position")?.asDouble ?: 0.0,
-                duration       = json.get("duration")?.asDouble ?: 0.0
+                title          = json.safeStr("title", "Unknown"),
+                artist         = json.safeStr("artist", "Unknown"),
+                albumArtBase64 = json.safeStr("album_art_base64"),
+                isPlaying      = json.safeBool("isPlaying"),
+                position       = json.safeDouble("position"),
+                duration       = json.safeDouble("duration")
             )
         }
 
         socketClient.addListener("app_list") { json ->
-            val apps = json.getAsJsonArray("apps")?.map { a ->
-                val obj = a.asJsonObject
-                AppItem(
-                    name        = obj.get("name")?.asString ?: "",
-                    path        = obj.get("path")?.asString ?: "",
-                    iconBase64  = obj.get("icon")?.asString
-                )
+            val apps = json.getAsJsonArray("apps")?.mapNotNull { a ->
+                try {
+                    val obj = a.asJsonObject
+                    AppItem(
+                        name       = obj.safeStr("name", ""),
+                        path       = obj.safeStr("path", ""),
+                        iconBase64 = obj.safeStr("icon")
+                    )
+                } catch (_: Exception) { null }
             } ?: emptyList()
             _appList.value = apps
         }
 
         socketClient.addListener("file_list") { json ->
-            val files = json.getAsJsonArray("files")?.map { f ->
-                val obj = f.asJsonObject
-                FileItem(
-                    name        = obj.get("name")?.asString ?: "",
-                    path        = obj.get("path")?.asString ?: "",
-                    size        = obj.get("size")?.asLong ?: 0L,
-                    isDirectory = obj.get("isDirectory")?.asBoolean ?: false,
-                    type        = obj.get("type")?.asString ?: "file"
-                )
+            val files = json.getAsJsonArray("files")?.mapNotNull { f ->
+                try {
+                    val obj = f.asJsonObject
+                    FileItem(
+                        name        = obj.safeStr("name", ""),
+                        path        = obj.safeStr("path", ""),
+                        size        = obj.safeLong("size"),
+                        isDirectory = obj.safeBool("isDirectory"),
+                        type        = obj.safeStr("type", "file")
+                    )
+                } catch (_: Exception) { null }
             } ?: emptyList()
             _fileList.value = files
         }
 
         socketClient.addListener("file_chunk") { json ->
-            val name     = json.get("name")?.asString ?: "unknown"
-            val progress = json.get("progress")?.asFloat ?: 0f
-            val data     = json.get("data")?.asString ?: ""
-            val index    = json.get("index")?.asInt ?: 0
+            val name     = json.safeStr("name", "unknown")
+            val progress = json.safeFloat("progress")
+            val data     = json.safeStr("data", "")
+            val index    = json.safeInt("index")
 
             _fileTransferProgress.value = progress
             try {
@@ -369,39 +392,43 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.addListener("clipboard_sync")  { json -> addClipboard(json, "pc") }
 
         socketClient.addListener("sms_list") { json ->
-            val threads = json.getAsJsonArray("threads")?.map { t ->
-                val obj = t.asJsonObject
-                SmsThread(
-                    id            = obj.get("id")?.asString ?: "",
-                    contactName   = obj.get("contactName")?.asString ?: "Unknown",
-                    contactNumber = obj.get("contactNumber")?.asString ?: "",
-                    lastMessage   = obj.get("lastMessage")?.asString ?: "",
-                    timestamp     = obj.get("timestamp")?.asLong ?: 0L,
-                    unread        = obj.get("unread")?.asInt ?: 0
-                )
+            val threads = json.getAsJsonArray("threads")?.mapNotNull { t ->
+                try {
+                    val obj = t.asJsonObject
+                    SmsThread(
+                        id            = obj.safeStr("id", ""),
+                        contactName   = obj.safeStr("contactName", "Unknown"),
+                        contactNumber = obj.safeStr("contactNumber", ""),
+                        lastMessage   = obj.safeStr("lastMessage", ""),
+                        timestamp     = obj.safeLong("timestamp"),
+                        unread        = obj.safeInt("unread")
+                    )
+                } catch (_: Exception) { null }
             } ?: emptyList()
             _smsThreads.value = threads
         }
 
         socketClient.addListener("photo_list") { json ->
-            val photos = json.getAsJsonArray("photos")?.map { p ->
-                val obj = p.asJsonObject
-                PhotoItem(
-                    name            = obj.get("name")?.asString ?: "",
-                    path            = obj.get("path")?.asString ?: "",
-                    thumbnailBase64 = obj.get("thumbnail")?.asString,
-                    timestamp       = obj.get("timestamp")?.asLong ?: 0L
-                )
+            val photos = json.getAsJsonArray("photos")?.mapNotNull { p ->
+                try {
+                    val obj = p.asJsonObject
+                    PhotoItem(
+                        name            = obj.safeStr("name", ""),
+                        path            = obj.safeStr("path", ""),
+                        thumbnailBase64 = obj.safeStr("thumbnail"),
+                        timestamp       = obj.safeLong("timestamp")
+                    )
+                } catch (_: Exception) { null }
             } ?: emptyList()
             _photos.value = photos
         }
 
         socketClient.addListener("screen_frame") { json ->
-            _screenFrameBase64.value = json.get("data")?.asString
+            _screenFrameBase64.value = json.safeStr("data")
         }
 
         socketClient.addListener("camera_frame") { json ->
-            _cameraFrameBase64.value = json.get("data")?.asString
+            _cameraFrameBase64.value = json.safeStr("data")
         }
 
         socketClient.addListener("usb_connected") { _ ->
@@ -415,12 +442,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         socketClient.addListener("error") { json ->
-            _toastMessage.value = json.get("message")?.asString ?: "Unknown error"
+            _toastMessage.value = json.safeStr("message", "Unknown error")
         }
     }
 
     private fun addClipboard(json: JsonObject, source: String) {
-        val content = json.get("content")?.asString ?: return
+        val content = json.safeStr("content") ?: return
         val item    = ClipboardItem(content = content, isImage = false, source = source)
         _clipboardItems.value = (_clipboardItems.value + item).takeLast(50)
     }
