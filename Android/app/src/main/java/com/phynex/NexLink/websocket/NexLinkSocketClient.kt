@@ -110,10 +110,11 @@ class NexLinkSocketClient {
 
         try {
             val opts = IO.Options.builder()
-                .setTransports(arrayOf("websocket"))
+                .setTransports(arrayOf("polling", "websocket"))  // polling first, then upgrade
                 .setReconnection(true)
                 .setReconnectionDelay(5000)
                 .setReconnectionAttempts(Int.MAX_VALUE)
+                .setTimeout(20000)
                 .setAuth(mapOf("token" to firebaseToken, "userId" to userId))
                 .build()
 

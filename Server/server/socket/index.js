@@ -9,6 +9,7 @@ const initSocketIO = (server) => {
   const io = new Server(server, {
     cors: { origin: '*', methods: ['GET', 'POST'] },
     transports: ['websocket', 'polling'],
+    allowEIO3: true,           // Allow Socket.IO v2/EIO3 Android clients
     pingInterval: 25000,
     pingTimeout: 60000,
   });
