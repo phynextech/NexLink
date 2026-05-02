@@ -11,6 +11,16 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 
+import com.phynex.NexLink.model.*
+import com.phynex.NexLink.service.LinkBridgeNotificationService
+import com.phynex.NexLink.service.SmsReceiver
+import com.phynex.NexLink.service.PairingManager
+import com.phynex.NexLink.websocket.NexLinkSocketClient
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
+
 // ── Safe JSON helpers (guard against JsonArray instead of JsonPrimitive) ───
 private fun JsonObject.safeStr(key: String, default: String = ""): String =
     try { get(key)?.takeIf { it.isJsonPrimitive }?.asString ?: default } catch (_: Exception) { default }
@@ -26,15 +36,7 @@ private fun JsonObject.safeFloat(key: String, default: Float = 0f): Float =
     try { get(key)?.takeIf { it.isJsonPrimitive }?.asFloat ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeLong(key: String, default: Long = 0L): Long =
     try { get(key)?.takeIf { it.isJsonPrimitive }?.asLong ?: default } catch (_: Exception) { default }
-import com.phynex.NexLink.model.*
-import com.phynex.NexLink.service.LinkBridgeNotificationService
-import com.phynex.NexLink.service.SmsReceiver
-import com.phynex.NexLink.service.PairingManager
-import com.phynex.NexLink.websocket.NexLinkSocketClient
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
+
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
