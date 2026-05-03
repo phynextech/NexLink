@@ -281,17 +281,8 @@ namespace NexLink.ViewModels
 
         private void SendSystemInfo()
         {
-            var (ssid, strength) = SystemInfoService.GetWifiInfo();
-            var (battLevel, battCharging) = SystemInfoService.GetBatteryInfo();
-            var volume = SystemInfoService.GetVolume();
-            var brightness = SystemInfoService.GetBrightness();
-            var btDevices = SystemInfoService.GetBluetoothDevices();
-            var btEnabled = SystemInfoService.GetBluetoothEnabled();
-            WsService.Send(new { type = "wifi_info", ssid, strength });
-            WsService.Send(new { type = "battery_info", level = battLevel, isCharging = battCharging });
-            WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
-            WsService.Send(new { type = "volume", level = volume });
-            WsService.Send(new { type = "brightness", level = brightness });
+            // Delegate to consolidated BuildSystemState — all real values, one call
+            WsService.Send(SystemInfoService.BuildSystemState());
         }
 
         private void SendWallpaper()

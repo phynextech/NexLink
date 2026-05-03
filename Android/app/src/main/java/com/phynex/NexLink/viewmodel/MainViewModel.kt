@@ -106,13 +106,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _brightnessOsdTrigger = MutableStateFlow<Int?>(null)
     val brightnessOsdTrigger: StateFlow<Int?> = _brightnessOsdTrigger
 
-    // Debounce timestamps — ignore PC broadcasts for 3s after local change
-    @Volatile private var _volumeChangedAt: Long = 0L
-    @Volatile private var _brightnessChangedAt: Long = 0L
-    private val DEBOUNCE_MS = 3_000L
-
     private val _bluetoothEnabled = MutableStateFlow(false)
     val bluetoothEnabled: StateFlow<Boolean> = _bluetoothEnabled
+
+    private val _muted = MutableStateFlow(false)
+    val muted: StateFlow<Boolean> = _muted
+
+    private val _deviceName = MutableStateFlow("Windows PC")
+    val deviceName: StateFlow<String> = _deviceName
+
+    private val _osVersion = MutableStateFlow("Windows")
+    val osVersion: StateFlow<String> = _osVersion
 
     private val _filePreviewData = MutableStateFlow<Pair<String, String>?>(null) // path to data
     val filePreviewData: StateFlow<Pair<String, String>?> = _filePreviewData
@@ -287,17 +291,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeConnection() {
         viewModelScope.launch {
-            var wasFalse = true
             combine(socketClient.isConnected, socketClient.isPeerOnline) { relay, peer ->
                 relay && peer
             }.collect { connected ->
                 _connectionState.value = if (connected) ConnectionState.CONNECTED
                                          else          ConnectionState.DISCONNECTED
-                // When connection is established (transition false→true), request fresh data
-                if (connected && wasFalse) {
-                    requestInitialData()
-                }
-                wasFalse = !connected
             }
         }
     }
@@ -340,22 +338,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("volume") { json ->
             val newVol = json.safeInt("level", _volume.value)
-            // Ignore broadcast if user just changed volume locally (debounce 3s)
-            if (System.currentTimeMillis() - _volumeChangedAt > DEBOUNCE_MS) {
-                val old = _volume.value
-                _volume.value = newVol
-                if (newVol != old) _volumeOsdTrigger.value = newVol
-            }
+            val old = _volume.value
+            _volume.value = newVol
+            // Only show OSD when value is pushed by PC (not an ack of our own send)
+            if (newVol != old) _volumeOsdTrigger.value = newVol
+        }
+
+        // volume_ack: PC confirmed our slider change — silently sync, no OSD
+        socketClient.addListener("volume_ack") { json ->
+            _volume.value = json.safeInt("level", _volume.value)
         }
 
         socketClient.addListener("brightness") { json ->
             val newBri = json.safeInt("level", _brightness.value)
-            // Ignore broadcast if user just changed brightness locally (debounce 3s)
-            if (System.currentTimeMillis() - _brightnessChangedAt > DEBOUNCE_MS) {
-                val old = _brightness.value
-                _brightness.value = newBri
-                if (newBri != old) _brightnessOsdTrigger.value = newBri
+            val old = _brightness.value
+            _brightness.value = newBri
+            if (newBri != old) _brightnessOsdTrigger.value = newBri
+        }
+
+        // brightness_ack: PC confirmed our slider change — silently sync, no OSD
+        socketClient.addListener("brightness_ack") { json ->
+            _brightness.value = json.safeInt("level", _brightness.value)
+        }
+
+        // system_state: full initial state from PC on connect — fan out to all flows
+        socketClient.addListener("system_state") { json ->
+            // WiFi
+            json.getAsJsonObject("wifi")?.let { wifi ->
+                _wifiInfo.value = WifiInfo(
+                    ssid     = wifi.safeStr("ssid", "Unknown"),
+                    strength = wifi.safeInt("strength")
+                )
             }
+            // Battery
+            json.getAsJsonObject("battery")?.let { bat ->
+                _batteryInfo.value = BatteryInfo(
+                    level      = bat.safeInt("percentage"),
+                    isCharging = bat.safeBool("charging")
+                )
+            }
+            // Bluetooth
+            json.getAsJsonObject("bluetooth")?.let { bt ->
+                _bluetoothEnabled.value = bt.safeBool("enabled")
+                val devList = bt.getAsJsonArray("connectedDevices")?.mapNotNull { d ->
+                    try {
+                        val obj = d.asJsonObject
+                        BluetoothDevice(
+                            name    = obj.safeStr("name", "Unknown"),
+                            address = obj.safeStr("address", ""),
+                            type    = obj.safeStr("type", "Bluetooth")
+                        )
+                    } catch (_: Exception) { null }
+                } ?: emptyList()
+                _bluetoothDevices.value = devList
+            }
+            // Volume / brightness / muted — set silently (no OSD on initial connect)
+            _volume.value     = json.safeInt("volume", _volume.value)
+            _brightness.value = json.safeInt("brightness", _brightness.value)
+            _muted.value      = json.safeBool("muted")
+            // Wallpaper
+            val wall = json.safeStr("wallpaper")
+            if (!wall.isNullOrEmpty()) _wallpaperBase64.value = wall
+            // Device meta
+            val dn = json.safeStr("deviceName", "")
+            if (dn.isNotEmpty()) _deviceName.value = dn
+            val ov = json.safeStr("osVersion", "")
+            if (ov.isNotEmpty()) _osVersion.value = ov
+        }
+
+        // state_update: lightweight 2s refresh — same fan-out but skips wallpaper/BT
+        socketClient.addListener("state_update") { json ->
+            // WiFi
+            json.getAsJsonObject("wifi")?.let { wifi ->
+                _wifiInfo.value = WifiInfo(
+                    ssid     = wifi.safeStr("ssid", _wifiInfo.value?.ssid ?: "Unknown"),
+                    strength = wifi.safeInt("strength", _wifiInfo.value?.strength ?: 0)
+                )
+            }
+            // Battery
+            json.getAsJsonObject("battery")?.let { bat ->
+                _batteryInfo.value = BatteryInfo(
+                    level      = bat.safeInt("percentage", _batteryInfo.value?.level ?: 0),
+                    isCharging = bat.safeBool("charging", _batteryInfo.value?.isCharging ?: false)
+                )
+            }
+            // Volume / brightness / muted — silent sync (no OSD spam every 2s)
+            val newVol = json.safeInt("volume", _volume.value)
+            val newBri = json.safeInt("brightness", _brightness.value)
+            _volume.value     = newVol
+            _brightness.value = newBri
+            _muted.value      = json.safeBool("muted", _muted.value)
         }
 
         socketClient.addListener("now_playing") { json ->
@@ -544,16 +616,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Commands ──────────────────────────────────────────────────────────
 
     fun requestInitialData() {
-        // Send immediately
         socketClient.sendMessage(mapOf("type" to "request_info"))
         socketClient.sendMessage(mapOf("type" to "get_wallpaper"))
-        // Retry after 1.5s in case first messages were missed during handshake
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(1500)
-            if (socketClient.isConnected.value) {
-                socketClient.sendMessage(mapOf("type" to "request_info"))
-            }
-        }
     }
 
     fun requestSystemInfo() = socketClient.sendMessage(mapOf("type" to "request_info"))
@@ -568,13 +632,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendVolume(level: Int) {
         _volume.value = level
-        _volumeChangedAt = System.currentTimeMillis()
         socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
     }
 
     fun sendBrightness(level: Int) {
         _brightness.value = level
-        _brightnessChangedAt = System.currentTimeMillis()
         socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
     }
 

@@ -40,6 +40,9 @@ fun HomeScreen(
     val bluetoothEnabled by viewModel.bluetoothEnabled.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val brightness by viewModel.brightness.collectAsState()
+    val muted by viewModel.muted.collectAsState()
+    val deviceName by viewModel.deviceName.collectAsState()
+    val osVersion by viewModel.osVersion.collectAsState()
     val volumeOsd by viewModel.volumeOsdTrigger.collectAsState()
     val brightnessOsd by viewModel.brightnessOsdTrigger.collectAsState()
 
@@ -94,12 +97,8 @@ fun HomeScreen(
                 Spacer(Modifier.height(16.dp))
 
                 // Device Info
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        deviceInfo?.deviceName ?: "DESKTOP-PC",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = primary, fontWeight = FontWeight.Bold
-                    )
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(deviceName, style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
                     val connectionMode by viewModel.connectionMode.collectAsState()
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(if (isConnected) GreenLight else RedDisconnected))
@@ -157,16 +156,19 @@ fun HomeScreen(
                         Brush.linearGradient(listOf(Color(0xFF1A1A2E), Color(0xFF0D0D1A)))
                     ))
 
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, background.copy(0.85f)))))
-
+                    // Windows card
+                    Box(
+                        Modifier.fillMaxSize()
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, background.copy(0.85f))))
+                    )
                     Row(Modifier.align(Alignment.BottomStart).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(48.dp).glassCard(RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.GridView, null, tint = Color.White)
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(deviceInfo?.deviceName ?: "Windows PC", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                            Text("Windows 11 Professional", style = MaterialTheme.typography.bodySmall, color = onBackground.copy(0.7f))
+                            Text(deviceName, style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(osVersion, style = MaterialTheme.typography.bodySmall, color = onBackground.copy(0.7f))
                         }
                     }
                     Icon(Icons.Default.Cast, null, tint = primary.copy(0.8f), modifier = Modifier.align(Alignment.TopEnd).padding(16.dp))
@@ -208,7 +210,12 @@ fun HomeScreen(
                 Spacer(Modifier.height(24.dp))
 
                 // Volume & Brightness sliders
-                VolumeBrightnessControl(Icons.Default.VolumeDown, "Master Volume", volume) { viewModel.sendVolume(it) }
+                // Volume
+                VolumeBrightnessControl(
+                    icon = if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeDown,
+                    label = if (muted) "Master Volume (Muted)" else "Master Volume",
+                    value = volume
+                ) { viewModel.sendVolume(it) }
                 Spacer(Modifier.height(16.dp))
                 VolumeBrightnessControl(Icons.Default.LightMode, "Screen Brightness", brightness) { viewModel.sendBrightness(it) }
 

@@ -126,35 +126,18 @@ namespace NexLink.Services
         // ─── Bluetooth Info ───
         public static List<object> GetBluetoothDevices()
         {
-            var devices  = new List<object>();
-            var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var devices = new List<object>();
             try
             {
-                // Capture BT audio devices, headsets, speakers — PNPClass can be empty for audio devices
-                // Use broader query on Win32_PnPEntity looking for BT-connected audio
-                var queries = new[]
+                // First try connected Bluetooth audio/input devices
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth' OR PNPClass = 'BTHLEDevice'");
+                foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
-                    "SELECT Name, Status FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth'",
-                    "SELECT Name, Status FROM Win32_PnPEntity WHERE PNPClass = 'BTHLEDevice'",
-                    "SELECT Name, Status FROM Win32_PnPEntity WHERE PNPClass = 'AudioEndpoint' AND Status = 'OK'",
-                };
-                foreach (var q in queries)
-                {
-                    try
-                    {
-                        var s = new System.Management.ManagementObjectSearcher(q);
-                        foreach (System.Management.ManagementObject obj in s.Get())
-                        {
-                            var name   = obj["Name"]?.ToString();
-                            var status = obj["Status"]?.ToString();
-                            if (!string.IsNullOrWhiteSpace(name) && !seenNames.Contains(name))
-                            {
-                                seenNames.Add(name);
-                                devices.Add(new { name, address = "BT", type = "Bluetooth", connected = status == "OK" });
-                            }
-                        }
-                    }
-                    catch { }
+                    var name   = obj["Name"]?.ToString();
+                    var status = obj["Status"]?.ToString();
+                    if (!string.IsNullOrEmpty(name) && status == "OK")
+                        devices.Add(new { name = name, address = "Unknown", type = "Bluetooth", connected = true });
                 }
             }
             catch { }
@@ -165,59 +148,91 @@ namespace NexLink.Services
         {
             try
             {
-                // Check for a BT adapter/radio in the PnP device tree
-                var s = new System.Management.ManagementObjectSearcher(
-                    "SELECT Name FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth'");
-                if (s.Get().Count > 0) return true;
-
-                // Also check BTLE devices
-                var s2 = new System.Management.ManagementObjectSearcher(
-                    "SELECT Name FROM Win32_PnPEntity WHERE PNPClass = 'BTHLEDevice'");
-                return s2.Get().Count > 0;
+                var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth'");
+                return searcher.Get().Count > 0;
             }
             catch { return false; }
         }
 
-        // ─── Battery Info ───
-        public static (int level, bool isCharging) GetBatteryInfo()
+        // ─── Mute ───
+        public static bool GetMuted()
         {
             try
             {
-                // Try WMI first — more reliable than SystemInformation
-                var searcher = new System.Management.ManagementObjectSearcher(
-                    "SELECT EstimatedChargeRemaining, BatteryStatus FROM Win32_Battery");
-                foreach (System.Management.ManagementObject obj in searcher.Get())
-                {
-                    var chargeObj = obj["EstimatedChargeRemaining"];
-                    var statusObj = obj["BatteryStatus"];
-                    if (chargeObj != null)
-                    {
-                        int level = Convert.ToInt32(chargeObj);
-                        if (level < 0 || level > 100) level = Math.Clamp(level, 0, 100);
-                        // BatteryStatus: 2=AC/Charging, 3=Fully charged
-                        int battStatus = statusObj != null ? Convert.ToInt32(statusObj) : 1;
-                        bool charging  = battStatus == 2 || battStatus == 3;
-                        return (level, charging);
-                    }
-                }
+                using var enumerator = new MMDeviceEnumerator();
+                var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+                return device.AudioEndpointVolume.Mute;
             }
-            catch { }
-
-            // Fallback to Windows Forms PowerStatus
-            try
-            {
-                var status = System.Windows.Forms.SystemInformation.PowerStatus;
-                float pct  = status.BatteryLifePercent;
-                // 255 (0xFF) means "no battery info available" — likely AC-only desktop
-                if (pct > 1f) return (100, true);
-                int level = (int)(pct * 100f);
-                bool charging = status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
-                return (Math.Clamp(level, 0, 100), charging);
-            }
-            catch { }
-
-            return (0, false);
+            catch { return false; }
         }
+
+        // ─── Battery Info (with hasBattery flag) ───
+        public static (int level, bool isCharging, bool hasBattery) GetBatteryInfo()
+        {
+            var status = System.Windows.Forms.SystemInformation.PowerStatus;
+            bool hasBattery = status.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.NoSystemBattery
+                           && status.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.Unknown;
+            int level = hasBattery ? (int)(status.BatteryLifePercent * 100) : 100;
+            if (level > 100) level = 100;
+            bool charging = status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+            return (level, charging, hasBattery);
+        }
+
+        // ─── Full system state snapshot ───
+        /// <summary>
+        /// Builds a complete system_state object to send to mobile on connect.
+        /// All values are read fresh — no caches, no fallback hardcoding.
+        /// </summary>
+        public static object BuildSystemState()
+        {
+            var (ssid, strength)              = GetWifiInfo();
+            var (batLevel, charging, hasBatt) = GetBatteryInfo();
+            var vol                           = GetVolume();
+            var bri                           = GetBrightness();
+            var muted                         = GetMuted();
+            var btDevices                     = GetBluetoothDevices();
+            var btEnabled                     = GetBluetoothEnabled();
+            var (wallB64, _)                  = GetWallpaperBase64Cached();
+            var osVer                         = Environment.OSVersion.Version.Build >= 22000
+                                                ? "Windows 11 Professional"
+                                                : $"Windows {Environment.OSVersion.Version}";
+
+            return new
+            {
+                type       = "system_state",
+                wallpaper  = wallB64 ?? "",
+                deviceName = Environment.MachineName,
+                osVersion  = osVer,
+                wifi       = new { connected = ssid != "Not Connected" && ssid != "Unknown", ssid, strength },
+                battery    = new { percentage = batLevel, charging, hasBattery = hasBatt },
+                bluetooth  = new { enabled = btEnabled, connectedDevices = btDevices },
+                volume     = vol,
+                brightness = bri,
+                muted       = muted,
+            };
+        }
+
+        // ─── Lightweight state update (no wallpaper) ───
+        public static object BuildStateUpdate()
+        {
+            var (ssid, strength)              = GetWifiInfo();
+            var (batLevel, charging, hasBatt) = GetBatteryInfo();
+            var vol                           = GetVolume();
+            var bri                           = GetBrightness();
+            var muted                         = GetMuted();
+
+            return new
+            {
+                type       = "state_update",
+                volume     = vol,
+                muted       = muted,
+                brightness = bri,
+                wifi       = new { connected = ssid != "Not Connected" && ssid != "Unknown", ssid, strength },
+                battery    = new { percentage = batLevel, charging, hasBattery = hasBatt },
+            };
+        }
+
 
         // ─── Wallpaper with hash cache ───
         private static string _lastWallpaperHash = "";

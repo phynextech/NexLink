@@ -95,6 +95,8 @@ namespace NexLink
                     PhoneNameLabel.Text = _vm.PhoneName;
                     SetStatusConnected(true);
                     StatusBar.Text = "Phone connected";
+                    // Immediately send ALL real system values
+                    Task.Run(() => SendSystemState());
                 });
 
                 _vm.WsService.PhoneDisconnected += () =>
@@ -198,6 +200,8 @@ namespace NexLink
                             {
                                 SystemInfoService.SetVolume(newVol);
                                 ShowWindowsOsd("🔊", $"Volume: {newVol}%");
+                                // Confirm back so Android slider stays in sync
+                                _vm.WsService.Send(new { type = "volume_ack", level = newVol });
                             }
                             break;
 
@@ -207,6 +211,8 @@ namespace NexLink
                             {
                                 SystemInfoService.SetBrightness(newBri);
                                 ShowWindowsOsd("☀", $"Brightness: {newBri}%");
+                                // Confirm back so Android slider stays in sync
+                                _vm.WsService.Send(new { type = "brightness_ack", level = newBri });
                             }
                             break;
 
@@ -266,16 +272,9 @@ namespace NexLink
                             break;
 
                         case "request_info":
-                            BroadcastSystemInfo(forceWallpaper: true);
-                            break;
-
                         case "get_wallpaper":
-                            Task.Run(() =>
-                            {
-                                var (b64, _) = SystemInfoService.GetWallpaperBase64Cached();
-                                if (!string.IsNullOrEmpty(b64))
-                                    _vm.WsService.Send(new { type = "wallpaper", data = b64 });
-                            });
+                            // Send full system_state (includes wallpaper)
+                            Task.Run(() => SendSystemState());
                             break;
                     }
                 });
@@ -294,44 +293,70 @@ namespace NexLink
             _broadcastTimer.Tick += (_, _) =>
             {
                 if (_vm.WsService.IsPhoneConnected)
-                    BroadcastSystemInfo(forceWallpaper: false);
+                    BroadcastSystemInfo();
             };
             _broadcastTimer.Start();
         }
 
-        private void BroadcastSystemInfo(bool forceWallpaper = false)
+        /// <summary>
+        /// Sends a FULL system_state to the phone (all real values, including wallpaper).
+        /// Called once immediately on connect and on request_info.
+        /// </summary>
+        private void SendSystemState()
+        {
+            try
+            {
+                // Build full snapshot (reads wallpaper, all hardware values)
+                var state = SystemInfoService.BuildSystemState();
+                _vm.WsService.Send(state);
+
+                // Also push media state
+                var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
+                _vm.WsService.Send(new
+                {
+                    type             = "now_playing",
+                    title            = np.Title,
+                    artist           = np.Artist,
+                    album_art_base64 = np.AlbumArtBase64,
+                    isPlaying        = np.IsPlaying,
+                    position         = np.PositionSec,
+                    duration         = np.DurationSec,
+                    appSource        = np.AppSource,
+                    shuffleActive    = np.ShuffleActive,
+                    repeatMode       = np.RepeatMode,
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SendSystemState] Error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Sends a lightweight state_update every 2 seconds (no wallpaper, no media art).
+        /// Keeps sliders and status chips in sync.
+        /// </summary>
+        private void BroadcastSystemInfo()
         {
             Task.Run(() =>
             {
                 try
                 {
-                    // WiFi
-                    var (ssid, strength) = SystemInfoService.GetWifiInfo();
-                    _vm.WsService.Send(new { type = "wifi_info", ssid, strength });
+                    // Lightweight: volume, brightness, wifi, battery, mute
+                    var update = SystemInfoService.BuildStateUpdate();
+                    _vm.WsService.Send(update);
 
-                    // Battery
-                    var (batLevel, isCharging) = SystemInfoService.GetBatteryInfo();
-                    _vm.WsService.Send(new { type = "battery_info", level = batLevel, isCharging });
-
-                    // Bluetooth
+                    // Bluetooth (less frequent, but still useful live)
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
 
-                    // Volume — always send actual PC value
-                    var vol = SystemInfoService.GetVolume();
-                    _vm.WsService.Send(new { type = "volume", level = vol });
-
-                    // Brightness — always send actual PC value
-                    var bri = SystemInfoService.GetBrightness();
-                    _vm.WsService.Send(new { type = "brightness", level = bri });
-
-                    // Wallpaper — always send if forced (initial connect), else only on change
+                    // Wallpaper (only if it changed, checked via hash)
                     var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
-                    if ((wallChanged || forceWallpaper) && !string.IsNullOrEmpty(wallB64))
+                    if (wallChanged && !string.IsNullOrEmpty(wallB64))
                         _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
 
-                    // Now playing media
+                    // Media now-playing
                     var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
                     _vm.WsService.Send(new
                     {
