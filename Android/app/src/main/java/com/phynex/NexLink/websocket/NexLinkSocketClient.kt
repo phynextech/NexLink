@@ -138,6 +138,15 @@ class NexLinkSocketClient {
                     put("deviceName", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
                 }
                 sock.emit("connect_device", payload)
+
+                // Delayed request_info — in case PC was already connected when we joined
+                // Wait 1.5s for registration to propagate on the relay before asking
+                scope.launch {
+                    delay(1500)
+                    val req = JSONObject().apply { put("type", "request_info") }
+                    sock.emit("message", req)
+                    Log.d(TAG, "Sent request_info on connect (delayed 1.5s)")
+                }
             }
 
             sock.on(Socket.EVENT_DISCONNECT) { args ->
@@ -160,6 +169,11 @@ class NexLinkSocketClient {
             sock.on("peer_online") { _ ->
                 Log.d(TAG, "Peer (laptop) came online")
                 _isPeerOnline.value = true
+
+                // Request all real system state from Windows immediately
+                val req = JSONObject().apply { put("type", "request_info") }
+                sock.emit("message", req)
+                Log.d(TAG, "Sent request_info to PC after peer came online")
             }
 
             sock.on("peer_offline") { _ ->
@@ -218,7 +232,9 @@ class NexLinkSocketClient {
         val ALL_EVENTS = listOf(
             "wifi_info", "battery_info", "bt_info", "wallpaper",
             "now_playing", "volume", "brightness",
-            "app_list", "file_list", "file_chunk",
+            "volume_ack", "brightness_ack",
+            "system_state", "state_update",
+            "app_list", "file_list", "file_chunk", "file_preview_data",
             "clipboard_pull", "clipboard_push", "clipboard_sync",
             "notification", "send_notification",
             "sms_list", "sms_received",

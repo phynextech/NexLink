@@ -26,11 +26,18 @@ namespace NexLink.Services
         {
             try
             {
+                level = Math.Clamp(level, 0, 100);
                 using var enumerator = new MMDeviceEnumerator();
                 var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                device.AudioEndpointVolume.MasterVolumeLevelScalar = level / 100f;
+                float scalar = level / 100f;
+                device.AudioEndpointVolume.MasterVolumeLevelScalar = scalar;
+                float verify = device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                Console.WriteLine($"[SetVolume] Set to {level}% → verified {(int)(verify * 100)}%");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SetVolume] FAILED: {ex.Message}");
+            }
         }
 
         public static int GetVolume()
@@ -39,9 +46,16 @@ namespace NexLink.Services
             {
                 using var enumerator = new MMDeviceEnumerator();
                 var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                return (int)(device.AudioEndpointVolume.MasterVolumeLevelScalar * 100);
+                float scalar = device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                int vol = (int)Math.Round(scalar * 100f);
+                Console.WriteLine($"[GetVolume] scalar={scalar:F4} → {vol}%");
+                return vol;
             }
-            catch { return 50; }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetVolume] FAILED: {ex.Message}");
+                return -1; // -1 = failed, not a default
+            }
         }
 
         // ─── Brightness ───
@@ -49,30 +63,45 @@ namespace NexLink.Services
         {
             try
             {
-                var scope = new System.Management.ManagementScope(@"\\.\root\WMI");
-                var query = new System.Management.SelectQuery("WmiMonitorBrightnessMethods");
-                using var searcher = new System.Management.ManagementObjectSearcher(scope, query);
+                level = Math.Clamp(level, 0, 100);
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "root\\WMI", "SELECT * FROM WmiMonitorBrightnessMethods");
+                bool found = false;
                 foreach (System.Management.ManagementObject obj in searcher.Get())
-                    obj.InvokeMethod("WmiSetBrightness", new object[] { 1, (byte)level });
+                {
+                    obj.InvokeMethod("WmiSetBrightness", new object[] { (uint)1, (byte)level });
+                    Console.WriteLine($"[SetBrightness] Set to {level}%");
+                    found = true;
+                }
+                if (!found)
+                    Console.WriteLine("[SetBrightness] No WMI methods found (desktop monitor?)");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SetBrightness] FAILED: {ex.Message}");
+            }
         }
 
         public static int GetBrightness()
         {
             try
             {
-                var scope = new System.Management.ManagementScope(@"\\.\root\WMI");
-                var query = new System.Management.SelectQuery("WmiMonitorBrightness");
-                using var searcher = new System.Management.ManagementObjectSearcher(scope, query);
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "root\\WMI", "SELECT CurrentBrightness FROM WmiMonitorBrightness");
                 foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
-                    var val = obj["CurrentBrightness"];
-                    if (val != null) return Convert.ToInt32(val);
+                    int brightness = Convert.ToInt32(obj["CurrentBrightness"]);
+                    Console.WriteLine($"[GetBrightness] WMI returned {brightness}%");
+                    return brightness;
                 }
+                Console.WriteLine("[GetBrightness] WMI returned no results (desktop monitor?)");
+                return -1;
             }
-            catch { }
-            return 70;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetBrightness] FAILED: {ex.Message}");
+                return -1;
+            }
         }
 
         // ─── WiFi Info (real SSID via netsh) ───
@@ -80,47 +109,52 @@ namespace NexLink.Services
         {
             try
             {
-                var proc = new System.Diagnostics.Process
+                var psi = new System.Diagnostics.ProcessStartInfo
                 {
-                    StartInfo = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName               = "netsh",
-                        Arguments              = "wlan show interfaces",
-                        RedirectStandardOutput = true,
-                        UseShellExecute        = false,
-                        CreateNoWindow         = true,
-                    }
+                    FileName               = "netsh",
+                    Arguments              = "wlan show interfaces",
+                    RedirectStandardOutput = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
                 };
-                proc.Start();
-                var output = proc.StandardOutput.ReadToEnd();
+                using var proc = System.Diagnostics.Process.Start(psi)!;
+                string output = proc.StandardOutput.ReadToEnd();
                 proc.WaitForExit();
 
-                string ssid    = "Not Connected";
-                int    quality = 0;
+                Console.WriteLine($"[GetWifiInfo] netsh output length: {output.Length}");
 
-                foreach (var line in output.Split('\n'))
+                // Multiline regex: match SSID line that is NOT BSSID
+                var ssidMatch = System.Text.RegularExpressions.Regex.Match(
+                    output, @"^\s+SSID\s*:\s*(.+)$",
+                    System.Text.RegularExpressions.RegexOptions.Multiline);
+
+                var sigMatch = System.Text.RegularExpressions.Regex.Match(
+                    output, @"Signal\s*:\s*(\d+)%",
+                    System.Text.RegularExpressions.RegexOptions.Multiline);
+
+                if (ssidMatch.Success)
                 {
-                    var t = line.Trim();
-                    if (t.StartsWith("SSID") && !t.Contains("BSSID"))
-                    {
-                        var parts = t.Split(':', 2);
-                        if (parts.Length >= 2)
-                        {
-                            var s = parts[1].Trim();
-                            if (!string.IsNullOrEmpty(s)) ssid = s;
-                        }
-                    }
-                    if (t.StartsWith("Signal"))
-                    {
-                        var parts = t.Split(':', 2);
-                        if (parts.Length >= 2)
-                            int.TryParse(parts[1].Trim().Replace("%",""), out quality);
-                    }
+                    string ssid = ssidMatch.Groups[1].Value.Trim();
+                    int.TryParse(sigMatch.Groups[1].Value.Trim(), out int quality);
+                    Console.WriteLine($"[GetWifiInfo] SSID='{ssid}' Signal={quality}%");
+                    return (ssid, quality);
                 }
-                return (ssid, quality);
+
+                if (output.Contains("There is no wireless interface"))
+                {
+                    Console.WriteLine("[GetWifiInfo] No wireless interface");
+                    return ("No WiFi adapter", 0);
+                }
+
+                Console.WriteLine("[GetWifiInfo] Not connected to any network");
+                return ("Not connected", 0);
             }
-            catch { }
-            return ("Unknown", 0);
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetWifiInfo] FAILED: {ex.Message}");
+                return ("Error", 0);
+            }
         }
 
         // ─── Bluetooth Info ───
@@ -170,13 +204,47 @@ namespace NexLink.Services
         // ─── Battery Info (with hasBattery flag) ───
         public static (int level, bool isCharging, bool hasBattery) GetBatteryInfo()
         {
-            var status = System.Windows.Forms.SystemInformation.PowerStatus;
-            bool hasBattery = status.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.NoSystemBattery
-                           && status.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.Unknown;
-            int level = hasBattery ? (int)(status.BatteryLifePercent * 100) : 100;
-            if (level > 100) level = 100;
-            bool charging = status.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
-            return (level, charging, hasBattery);
+            try
+            {
+                // WMI Win32_Battery is more reliable than SystemInformation on laptops
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT EstimatedChargeRemaining, BatteryStatus FROM Win32_Battery");
+                var results = searcher.Get();
+                if (results.Count == 0)
+                {
+                    Console.WriteLine("[GetBatteryInfo] No Win32_Battery (desktop PC)");
+                    // Fallback to SystemInformation for desktops
+                    var ps = System.Windows.Forms.SystemInformation.PowerStatus;
+                    bool onAc = ps.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                    return (100, onAc, false);
+                }
+                foreach (System.Management.ManagementObject bat in results)
+                {
+                    int pct    = Convert.ToInt32(bat["EstimatedChargeRemaining"]);
+                    int status = Convert.ToInt32(bat["BatteryStatus"]);
+                    // BatteryStatus 2 = Fully Charged/AC, 6 = Charging
+                    bool charging = status == 2 || status == 6;
+                    Console.WriteLine($"[GetBatteryInfo] {pct}% charging={charging} status={status}");
+                    return (pct, charging, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetBatteryInfo] WMI failed: {ex.Message} — falling back to SystemInformation");
+                try
+                {
+                    var ps = System.Windows.Forms.SystemInformation.PowerStatus;
+                    bool hasBattery = ps.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.NoSystemBattery
+                                   && ps.BatteryChargeStatus != System.Windows.Forms.BatteryChargeStatus.Unknown;
+                    int level = hasBattery ? (int)(ps.BatteryLifePercent * 100) : 100;
+                    if (level > 100) level = 100;
+                    bool charging = ps.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
+                    Console.WriteLine($"[GetBatteryInfo] Fallback: {level}% charging={charging} hasBat={hasBattery}");
+                    return (level, charging, hasBattery);
+                }
+                catch { }
+            }
+            return (0, false, false);
         }
 
         // ─── Full system state snapshot ───

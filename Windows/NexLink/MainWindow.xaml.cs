@@ -273,8 +273,26 @@ namespace NexLink
 
                         case "request_info":
                         case "get_wallpaper":
-                            // Send full system_state (includes wallpaper)
-                            Task.Run(() => SendSystemState());
+                            // Send full system_state with ALL real values, log each one
+                            _ = Task.Run(() =>
+                            {
+                                try
+                                {
+                                    Console.WriteLine("[request_info] Reading system state...");
+                                    var vol = SystemInfoService.GetVolume();
+                                    var bri = SystemInfoService.GetBrightness();
+                                    var (ssid, sig) = SystemInfoService.GetWifiInfo();
+                                    var (batPct, charging, hasBat) = SystemInfoService.GetBatteryInfo();
+                                    var muted = SystemInfoService.GetMuted();
+                                    Console.WriteLine($"[request_info] volume={vol} brightness={bri} wifi='{ssid}' battery={batPct}% charging={charging} muted={muted}");
+                                    // Now send the full bundled state_state
+                                    SendSystemState();
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[request_info] ERROR: {ex.Message}");
+                                }
+                            });
                             break;
                     }
                 });
