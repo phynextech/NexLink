@@ -106,6 +106,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _brightnessOsdTrigger = MutableStateFlow<Int?>(null)
     val brightnessOsdTrigger: StateFlow<Int?> = _brightnessOsdTrigger
 
+    // Debounce timestamps — ignore PC broadcasts for 3s after local change
+    @Volatile private var _volumeChangedAt: Long = 0L
+    @Volatile private var _brightnessChangedAt: Long = 0L
+    private val DEBOUNCE_MS = 3_000L
+
     private val _bluetoothEnabled = MutableStateFlow(false)
     val bluetoothEnabled: StateFlow<Boolean> = _bluetoothEnabled
 
@@ -282,11 +287,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun observeConnection() {
         viewModelScope.launch {
+            var wasFalse = true
             combine(socketClient.isConnected, socketClient.isPeerOnline) { relay, peer ->
                 relay && peer
             }.collect { connected ->
                 _connectionState.value = if (connected) ConnectionState.CONNECTED
                                          else          ConnectionState.DISCONNECTED
+                // When connection is established (transition false→true), request fresh data
+                if (connected && wasFalse) {
+                    requestInitialData()
+                }
+                wasFalse = !connected
             }
         }
     }
@@ -329,16 +340,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("volume") { json ->
             val newVol = json.safeInt("level", _volume.value)
-            val old = _volume.value
-            _volume.value = newVol
-            if (newVol != old) _volumeOsdTrigger.value = newVol
+            // Ignore broadcast if user just changed volume locally (debounce 3s)
+            if (System.currentTimeMillis() - _volumeChangedAt > DEBOUNCE_MS) {
+                val old = _volume.value
+                _volume.value = newVol
+                if (newVol != old) _volumeOsdTrigger.value = newVol
+            }
         }
 
         socketClient.addListener("brightness") { json ->
             val newBri = json.safeInt("level", _brightness.value)
-            val old = _brightness.value
-            _brightness.value = newBri
-            if (newBri != old) _brightnessOsdTrigger.value = newBri
+            // Ignore broadcast if user just changed brightness locally (debounce 3s)
+            if (System.currentTimeMillis() - _brightnessChangedAt > DEBOUNCE_MS) {
+                val old = _brightness.value
+                _brightness.value = newBri
+                if (newBri != old) _brightnessOsdTrigger.value = newBri
+            }
         }
 
         socketClient.addListener("now_playing") { json ->
@@ -527,8 +544,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Commands ──────────────────────────────────────────────────────────
 
     fun requestInitialData() {
+        // Send immediately
         socketClient.sendMessage(mapOf("type" to "request_info"))
         socketClient.sendMessage(mapOf("type" to "get_wallpaper"))
+        // Retry after 1.5s in case first messages were missed during handshake
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(1500)
+            if (socketClient.isConnected.value) {
+                socketClient.sendMessage(mapOf("type" to "request_info"))
+            }
+        }
     }
 
     fun requestSystemInfo() = socketClient.sendMessage(mapOf("type" to "request_info"))
@@ -543,11 +568,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendVolume(level: Int) {
         _volume.value = level
+        _volumeChangedAt = System.currentTimeMillis()
         socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
     }
 
     fun sendBrightness(level: Int) {
         _brightness.value = level
+        _brightnessChangedAt = System.currentTimeMillis()
         socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
     }
 

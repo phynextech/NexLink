@@ -266,7 +266,7 @@ namespace NexLink
                             break;
 
                         case "request_info":
-                            BroadcastSystemInfo();
+                            BroadcastSystemInfo(forceWallpaper: true);
                             break;
 
                         case "get_wallpaper":
@@ -294,12 +294,12 @@ namespace NexLink
             _broadcastTimer.Tick += (_, _) =>
             {
                 if (_vm.WsService.IsPhoneConnected)
-                    BroadcastSystemInfo();
+                    BroadcastSystemInfo(forceWallpaper: false);
             };
             _broadcastTimer.Start();
         }
 
-        private void BroadcastSystemInfo()
+        private void BroadcastSystemInfo(bool forceWallpaper = false)
         {
             Task.Run(() =>
             {
@@ -318,17 +318,17 @@ namespace NexLink
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
 
-                    // Volume
+                    // Volume — always send actual PC value
                     var vol = SystemInfoService.GetVolume();
                     _vm.WsService.Send(new { type = "volume", level = vol });
 
-                    // Brightness
+                    // Brightness — always send actual PC value
                     var bri = SystemInfoService.GetBrightness();
                     _vm.WsService.Send(new { type = "brightness", level = bri });
 
-                    // Wallpaper (only if changed)
+                    // Wallpaper — always send if forced (initial connect), else only on change
                     var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
-                    if (wallChanged && !string.IsNullOrEmpty(wallB64))
+                    if ((wallChanged || forceWallpaper) && !string.IsNullOrEmpty(wallB64))
                         _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
 
                     // Now playing media
