@@ -31,7 +31,9 @@ namespace NexLink
         private string _lastClipboardHash = "";
         private DispatcherTimer? _clipboardTimer;
 
-        // Volume/brightness tracking — reserved for future delta detection
+        // Track last-known volume/brightness so we can push changes to phone immediately
+        private int _lastKnownVolume = -1;
+        private int _lastKnownBrightness = -1;
 
         public MainWindow()
         {
@@ -199,9 +201,11 @@ namespace NexLink
                             if (newVol >= 0)
                             {
                                 SystemInfoService.SetVolume(newVol);
-                                ShowWindowsOsd("🔊", $"Volume: {newVol}%");
-                                // Confirm back so Android slider stays in sync
-                                _vm.WsService.Send(new { type = "volume_ack", level = newVol });
+                                // Read back ACTUAL volume after setting (hardware may round)
+                                var actualVol = SystemInfoService.GetVolume();
+                                ShowWindowsOsd("🔊", $"Volume: {actualVol}%");
+                                // Confirm back with the real hardware-verified value
+                                _vm.WsService.Send(new { type = "volume_ack", level = actualVol });
                             }
                             break;
 
@@ -210,9 +214,12 @@ namespace NexLink
                             if (newBri >= 0)
                             {
                                 SystemInfoService.SetBrightness(newBri);
-                                ShowWindowsOsd("☀", $"Brightness: {newBri}%");
-                                // Confirm back so Android slider stays in sync
-                                _vm.WsService.Send(new { type = "brightness_ack", level = newBri });
+                                // Read back ACTUAL brightness after setting
+                                var actualBri = SystemInfoService.GetBrightness();
+                                if (actualBri < 0) actualBri = newBri; // if WMI fails, trust the request
+                                ShowWindowsOsd("☀", $"Brightness: {actualBri}%");
+                                // Confirm back with the real hardware-verified value
+                                _vm.WsService.Send(new { type = "brightness_ack", level = actualBri });
                             }
                             break;
 
@@ -322,48 +329,37 @@ namespace NexLink
         /// </summary>
         private void SendSystemState()
         {
-            Task.Run(() =>
+            try
             {
-                try
-                {
-                    // Force-read wallpaper ignoring hash cache (this IS the initial sync)
-                    var (wallB64, _) = SystemInfoService.GetWallpaperBase64(forceRefresh: true);
+                // Build full snapshot (reads wallpaper, all hardware values)
+                var state = SystemInfoService.BuildSystemState();
+                _vm.WsService.Send(state);
 
-                    // Build the full state with all real values
-                    var state = SystemInfoService.BuildSystemState(wallB64);
-                    _vm.WsService.Send(state);
-                    Console.WriteLine("[SendSystemState] Sent full system_state to phone");
-
-                    // Also push current media state
-                    var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
-                    _vm.WsService.Send(new
-                    {
-                        type             = "now_playing",
-                        title            = np.Title,
-                        artist           = np.Artist,
-                        album_art_base64 = np.AlbumArtBase64,
-                        isPlaying        = np.IsPlaying,
-                        position         = np.PositionSec,
-                        duration         = np.DurationSec,
-                        appSource        = np.AppSource,
-                        shuffleActive    = np.ShuffleActive,
-                        repeatMode       = np.RepeatMode,
-                    });
-                }
-                catch (Exception ex)
+                // Also push media state
+                var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
+                _vm.WsService.Send(new
                 {
-                    Console.WriteLine($"[SendSystemState] Error: {ex.Message}");
-                }
-            });
+                    type             = "now_playing",
+                    title            = np.Title,
+                    artist           = np.Artist,
+                    album_art_base64 = np.AlbumArtBase64,
+                    isPlaying        = np.IsPlaying,
+                    position         = np.PositionSec,
+                    duration         = np.DurationSec,
+                    appSource        = np.AppSource,
+                    shuffleActive    = np.ShuffleActive,
+                    repeatMode       = np.RepeatMode,
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SendSystemState] Error: {ex.Message}");
+            }
         }
 
-        // Track last volume/brightness to detect PC-side changes (keyboard, apps, etc.)
-        private int _lastSentVolume = -1;
-        private int _lastSentBrightness = -1;
-
         /// <summary>
-        /// Sends a lightweight state_update every 2 seconds.
-        /// Also detects PC-side volume/brightness changes and pushes them immediately.
+        /// Sends a lightweight state_update every 2 seconds (no wallpaper, no media art).
+        /// Also detects PC-side volume/brightness changes and pushes them to phone immediately.
         /// </summary>
         private void BroadcastSystemInfo()
         {
@@ -371,24 +367,36 @@ namespace NexLink
             {
                 try
                 {
+                    // ── Detect PC-side volume/brightness changes ───────────
+                    var currentVol = SystemInfoService.GetVolume();
+                    var currentBri = SystemInfoService.GetBrightness();
+
+                    if (currentVol >= 0 && currentVol != _lastKnownVolume && _lastKnownVolume >= 0)
+                    {
+                        // PC volume changed (e.g., user pressed media keys) — push to phone
+                        _vm.WsService.Send(new { type = "volume", level = currentVol });
+                        Console.WriteLine($"[BroadcastSystemInfo] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
+                    }
+                    if (currentVol >= 0) _lastKnownVolume = currentVol;
+
+                    if (currentBri >= 0 && currentBri != _lastKnownBrightness && _lastKnownBrightness >= 0)
+                    {
+                        // PC brightness changed — push to phone
+                        _vm.WsService.Send(new { type = "brightness", level = currentBri });
+                        Console.WriteLine($"[BroadcastSystemInfo] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
+                    }
+                    if (currentBri >= 0) _lastKnownBrightness = currentBri;
+
+                    // ── Lightweight state_update (battery, wifi, muted) ───
                     var update = SystemInfoService.BuildStateUpdate();
                     _vm.WsService.Send(update);
 
-                    // Detect PC-side volume changes (keyboard / other apps)
-                    var curVol = SystemInfoService.GetVolume();
-                    if (curVol >= 0 && curVol != _lastSentVolume)
-                    {
-                        _lastSentVolume = curVol;
-                        // Push a dedicated volume event so Android OSD shows
-                        _vm.WsService.Send(new { type = "volume", level = curVol });
-                    }
-
-                    // Bluetooth
+                    // Bluetooth (less frequent, but still useful live)
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
 
-                    // Wallpaper (only if changed via hash check)
+                    // Wallpaper (only if it changed, checked via hash)
                     var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
                     if (wallChanged && !string.IsNullOrEmpty(wallB64))
                         _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });

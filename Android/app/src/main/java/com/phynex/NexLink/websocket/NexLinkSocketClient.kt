@@ -143,9 +143,12 @@ class NexLinkSocketClient {
                 // Wait 1.5s for registration to propagate on the relay before asking
                 scope.launch {
                     delay(1500)
-                    // Emit directly as the event name, NOT wrapped in "message"
-                    sock.emit("request_info", JSONObject().apply { put("source", "mobile_connect") })
+                    // Emit as named event (server relays by event name, not by "message")
+                    sock.emit("request_info", JSONObject())
                     Log.d(TAG, "Sent request_info on connect (delayed 1.5s)")
+                    delay(500)
+                    sock.emit("get_wallpaper", JSONObject())
+                    Log.d(TAG, "Sent get_wallpaper on connect")
                 }
             }
 
@@ -170,10 +173,16 @@ class NexLinkSocketClient {
                 Log.d(TAG, "Peer (laptop) came online")
                 _isPeerOnline.value = true
 
-                // Emit request_info directly as its own event — NOT wrapped in "message"
-                // Windows only listens on named events, not on a generic "message" event
-                sock.emit("request_info", JSONObject().apply { put("source", "peer_online") })
-                Log.d(TAG, "Sent request_info to PC after peer came online")
+                // Request all real system state from Windows immediately
+                // Emit as named events — server relays by event name, not by generic "message"
+                scope.launch {
+                    delay(300)
+                    sock.emit("request_info", JSONObject())
+                    Log.d(TAG, "Sent request_info to PC after peer came online")
+                    delay(500)
+                    sock.emit("get_wallpaper", JSONObject())
+                    Log.d(TAG, "Sent get_wallpaper to PC after peer came online")
+                }
             }
 
             sock.on("peer_offline") { _ ->

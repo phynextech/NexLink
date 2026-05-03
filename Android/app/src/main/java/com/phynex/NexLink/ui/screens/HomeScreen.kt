@@ -283,14 +283,13 @@ fun VolumeBrightnessControl(
     value: Int,
     onValueChange: (Int) -> Unit
 ) {
-    // Local state tracks the value while user is dragging
-    // This prevents state_update (every 2s from PC) from resetting the slider mid-drag
+    // Local draft: tracks position during drag, syncs with remote value when not dragging
     var isDragging by remember { mutableStateOf(false) }
-    var localValue by remember { mutableFloatStateOf(value.toFloat()) }
+    var draftValue by remember { mutableStateOf(value.toFloat()) }
 
-    // Only sync from ViewModel when NOT actively dragging
+    // When PC pushes a new value and user is NOT dragging, snap the slider to it
     LaunchedEffect(value) {
-        if (!isDragging) localValue = value.toFloat()
+        if (!isDragging) draftValue = value.toFloat()
     }
 
     Column(Modifier.fillMaxWidth().glassCard().padding(24.dp)) {
@@ -300,19 +299,19 @@ fun VolumeBrightnessControl(
                 Spacer(Modifier.width(12.dp))
                 Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
             }
-            Text("${localValue.toInt()}", style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
+            Text("${draftValue.toInt()}", style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(16.dp))
         Slider(
-            value = localValue,
+            value = draftValue,
             onValueChange = {
                 isDragging = true
-                localValue = it
+                draftValue = it
             },
             onValueChangeFinished = {
-                // Only send to PC when user lifts finger — not on every pixel moved
                 isDragging = false
-                onValueChange(localValue.toInt())
+                val final = draftValue.toInt()
+                onValueChange(final)  // Only send to PC on release
             },
             valueRange = 0f..100f,
             colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = primary, inactiveTrackColor = background)

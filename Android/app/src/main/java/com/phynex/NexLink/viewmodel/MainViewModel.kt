@@ -99,6 +99,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _brightness = MutableStateFlow(50)
     val brightness: StateFlow<Int> = _brightness
 
+    // Track what we last sent to PC so we can distinguish echoes from real PC-side changes
+    @Volatile private var _lastSentVolume = -1
+    @Volatile private var _lastSentBrightness = -1
+
     // OSD trigger flows (emit true when value changes externally from PC)
     private val _volumeOsdTrigger = MutableStateFlow<Int?>(null)
     val volumeOsdTrigger: StateFlow<Int?> = _volumeOsdTrigger
@@ -422,12 +426,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isCharging = bat.safeBool("charging", _batteryInfo.value?.isCharging ?: false)
                 )
             }
-            // Volume / brightness / muted — silent sync (no OSD spam every 2s)
+            // Volume — show OSD only if PC changed it (not echoing our own send)
             val newVol = json.safeInt("volume", _volume.value)
+            if (newVol != _volume.value) {
+                _volume.value = newVol
+                // Only show OSD if this wasn't caused by us sending it
+                if (newVol != _lastSentVolume) _volumeOsdTrigger.value = newVol
+                _lastSentVolume = -1  // reset after processing
+            }
+            // Brightness — show OSD only if PC changed it
             val newBri = json.safeInt("brightness", _brightness.value)
-            _volume.value     = newVol
-            _brightness.value = newBri
-            _muted.value      = json.safeBool("muted", _muted.value)
+            if (newBri != _brightness.value) {
+                _brightness.value = newBri
+                if (newBri != _lastSentBrightness) _brightnessOsdTrigger.value = newBri
+                _lastSentBrightness = -1
+            }
+            _muted.value = json.safeBool("muted", _muted.value)
         }
 
         socketClient.addListener("now_playing") { json ->
@@ -631,13 +645,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendVolume(level: Int) {
-        // Do NOT update _volume.value here — wait for volume_ack from PC
-        // Updating it immediately causes the slider to reset mid-drag
+        _lastSentVolume = level
+        _volume.value = level
         socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
     }
 
     fun sendBrightness(level: Int) {
-        // Do NOT update _brightness.value here — wait for brightness_ack from PC
+        _lastSentBrightness = level
+        _brightness.value = level
         socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
     }
 
