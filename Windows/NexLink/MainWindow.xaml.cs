@@ -336,16 +336,48 @@ namespace NexLink
         /// <summary>
         /// Sends a FULL system_state to the phone (all real values, including wallpaper).
         /// Called once immediately on connect and on request_info.
+        /// Also sends each piece of data as INDIVIDUAL named events — these are already
+        /// in the relay server's event list, so they work even if the bundled system_state
+        /// event hasn't been added to the relay yet.
         /// </summary>
         private void SendSystemState()
         {
             try
             {
-                // Build full snapshot (reads wallpaper, all hardware values)
+                // Read all values fresh
+                var vol  = SystemInfoService.GetVolume();
+                var bri  = SystemInfoService.GetBrightness();
+                var (ssid, sig, wifiConn) = SystemInfoService.GetWifiInfo();
+                var (batPct, charging, hasBat) = SystemInfoService.GetBatteryInfo();
+                var muted = SystemInfoService.GetMuted();
+                var btDevices = SystemInfoService.GetBluetoothDevices();
+                var btEnabled = SystemInfoService.GetBluetoothEnabled();
+                var (wallB64, _) = SystemInfoService.GetWallpaperBase64Cached();
+
+                // Update trackers
+                if (vol >= 0) _lastKnownVolume = vol;
+                if (bri >= 0) _lastKnownBrightness = bri;
+                _lastKnownBattery  = batPct;
+                _lastKnownCharging = charging;
+                _lastKnownSsid     = ssid;
+                _lastKnownMuted    = muted;
+
+                // ── 1) Bundled system_state (works if relay has it in event list) ──
                 var state = SystemInfoService.BuildSystemState();
                 _vm.WsService.Send(state);
 
-                // Also push media state
+                // ── 2) Individual events (guaranteed to relay — these are in the OLD event list) ──
+                _vm.WsService.Send(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
+                _vm.WsService.Send(new { type = "battery_info", level = batPct, isCharging = charging });
+                _vm.WsService.Send(new { type = "bt_info",      devices = btDevices, bluetoothEnabled = btEnabled });
+                _vm.WsService.Send(new { type = "volume",       level = vol });
+                _vm.WsService.Send(new { type = "brightness",   level = bri });
+                if (!string.IsNullOrEmpty(wallB64))
+                    _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
+
+                Console.WriteLine($"[SendSystemState] Sent all: vol={vol} bri={bri} wifi='{ssid}' bat={batPct}% wall={(!string.IsNullOrEmpty(wallB64) ? "yes" : "no")}");
+
+                // ── 3) Media state ──
                 var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
                 _vm.WsService.Send(new
                 {
@@ -368,8 +400,9 @@ namespace NexLink
         }
 
         /// <summary>
-        /// Sends a lightweight state_update every 2 seconds — only when values actually changed.
-        /// Also detects PC-side volume/brightness changes and pushes dedicated events.
+        /// Every 2 seconds: sends individual named events for each piece of system data.
+        /// Uses individual events (wifi_info, battery_info, volume, brightness) which are
+        /// guaranteed to be relayed by the server, instead of relying on a bundled state_update.
         /// </summary>
         private void BroadcastSystemInfo()
         {
@@ -384,29 +417,31 @@ namespace NexLink
                     var (batPct, charging, hasBat) = SystemInfoService.GetBatteryInfo();
                     var muted = SystemInfoService.GetMuted();
 
-                    // ── Detect and push individual changes immediately ───
-                    if (currentVol >= 0 && currentVol != _lastKnownVolume && _lastKnownVolume >= 0)
+                    // ── Always send wifi_info and battery_info as individual events ──
+                    // These are guaranteed to be relayed (in the server's original event list)
+                    if (ssid != _lastKnownSsid || batPct != _lastKnownBattery || charging != _lastKnownCharging || _lastKnownBattery < 0)
+                    {
+                        _vm.WsService.Send(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
+                        _vm.WsService.Send(new { type = "battery_info", level = batPct, isCharging = charging });
+                    }
+
+                    // ── Volume: push as individual event when changed ──
+                    if (currentVol >= 0 && currentVol != _lastKnownVolume)
                     {
                         _vm.WsService.Send(new { type = "volume", level = currentVol });
-                        Console.WriteLine($"[Broadcast] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
+                        if (_lastKnownVolume >= 0)
+                            Console.WriteLine($"[Broadcast] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
                     }
                     if (currentVol >= 0) _lastKnownVolume = currentVol;
 
-                    if (currentBri >= 0 && currentBri != _lastKnownBrightness && _lastKnownBrightness >= 0)
+                    // ── Brightness: push as individual event when changed ──
+                    if (currentBri >= 0 && currentBri != _lastKnownBrightness)
                     {
                         _vm.WsService.Send(new { type = "brightness", level = currentBri });
-                        Console.WriteLine($"[Broadcast] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
+                        if (_lastKnownBrightness >= 0)
+                            Console.WriteLine($"[Broadcast] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
                     }
                     if (currentBri >= 0) _lastKnownBrightness = currentBri;
-
-                    // ── Check if any state actually changed before sending state_update ───
-                    bool changed = (currentVol != _lastKnownVolume  && _lastKnownVolume >= 0)
-                                || (currentBri != _lastKnownBrightness && _lastKnownBrightness >= 0)
-                                || batPct != _lastKnownBattery
-                                || charging != _lastKnownCharging
-                                || ssid != _lastKnownSsid
-                                || muted != _lastKnownMuted
-                                || _lastKnownBattery < 0;  // first run
 
                     // Update trackers
                     _lastKnownBattery  = batPct;
@@ -414,13 +449,11 @@ namespace NexLink
                     _lastKnownSsid     = ssid;
                     _lastKnownMuted    = muted;
 
-                    if (changed)
-                    {
-                        var update = SystemInfoService.BuildStateUpdate();
-                        _vm.WsService.Send(update);
-                    }
+                    // Also send bundled state_update (for future when server supports it)
+                    var update = SystemInfoService.BuildStateUpdate();
+                    _vm.WsService.Send(update);
 
-                    // Bluetooth (always send — device list changes are hard to diff cheaply)
+                    // Bluetooth (always send — already in relay list)
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
