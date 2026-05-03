@@ -27,13 +27,20 @@ namespace NexLink
         // 2-second broadcast timer
         private DispatcherTimer? _broadcastTimer;
 
+        // 5-second wallpaper sync timer
+        private DispatcherTimer? _wallpaperTimer;
+
         // Clipboard monitoring
         private string _lastClipboardHash = "";
         private DispatcherTimer? _clipboardTimer;
 
-        // Track last-known volume/brightness so we can push changes to phone immediately
+        // Track last-known values so we push changes only when something actually changed
         private int _lastKnownVolume = -1;
         private int _lastKnownBrightness = -1;
+        private int _lastKnownBattery = -1;
+        private bool _lastKnownCharging = false;
+        private string _lastKnownSsid = "";
+        private bool _lastKnownMuted = false;
 
         public MainWindow()
         {
@@ -49,6 +56,7 @@ namespace NexLink
             await InitRelayPairingAsync();
             PopulateAppsTab();
             StartBroadcastTimer();
+            StartWallpaperTimer();
             StartClipboardWatcher();
         }
 
@@ -203,6 +211,7 @@ namespace NexLink
                                 SystemInfoService.SetVolume(newVol);
                                 // Read back ACTUAL volume after setting (hardware may round)
                                 var actualVol = SystemInfoService.GetVolume();
+                                _lastKnownVolume = actualVol;  // update tracker to prevent re-push
                                 ShowWindowsOsd("🔊", $"Volume: {actualVol}%");
                                 // Confirm back with the real hardware-verified value
                                 _vm.WsService.Send(new { type = "volume_ack", level = actualVol });
@@ -217,6 +226,7 @@ namespace NexLink
                                 // Read back ACTUAL brightness after setting
                                 var actualBri = SystemInfoService.GetBrightness();
                                 if (actualBri < 0) actualBri = newBri; // if WMI fails, trust the request
+                                _lastKnownBrightness = actualBri;  // update tracker to prevent re-push
                                 ShowWindowsOsd("☀", $"Brightness: {actualBri}%");
                                 // Confirm back with the real hardware-verified value
                                 _vm.WsService.Send(new { type = "brightness_ack", level = actualBri });
@@ -288,7 +298,7 @@ namespace NexLink
                                     Console.WriteLine("[request_info] Reading system state...");
                                     var vol = SystemInfoService.GetVolume();
                                     var bri = SystemInfoService.GetBrightness();
-                                    var (ssid, sig) = SystemInfoService.GetWifiInfo();
+                                    var (ssid, sig, wifiConn) = SystemInfoService.GetWifiInfo();
                                     var (batPct, charging, hasBat) = SystemInfoService.GetBatteryInfo();
                                     var muted = SystemInfoService.GetMuted();
                                     Console.WriteLine($"[request_info] volume={vol} brightness={bri} wifi='{ssid}' battery={batPct}% charging={charging} muted={muted}");
@@ -358,8 +368,8 @@ namespace NexLink
         }
 
         /// <summary>
-        /// Sends a lightweight state_update every 2 seconds (no wallpaper, no media art).
-        /// Also detects PC-side volume/brightness changes and pushes them to phone immediately.
+        /// Sends a lightweight state_update every 2 seconds — only when values actually changed.
+        /// Also detects PC-side volume/brightness changes and pushes dedicated events.
         /// </summary>
         private void BroadcastSystemInfo()
         {
@@ -367,39 +377,53 @@ namespace NexLink
             {
                 try
                 {
-                    // ── Detect PC-side volume/brightness changes ───────────
+                    // Read all current values
                     var currentVol = SystemInfoService.GetVolume();
                     var currentBri = SystemInfoService.GetBrightness();
+                    var (ssid, sig, wifiConn) = SystemInfoService.GetWifiInfo();
+                    var (batPct, charging, hasBat) = SystemInfoService.GetBatteryInfo();
+                    var muted = SystemInfoService.GetMuted();
 
+                    // ── Detect and push individual changes immediately ───
                     if (currentVol >= 0 && currentVol != _lastKnownVolume && _lastKnownVolume >= 0)
                     {
-                        // PC volume changed (e.g., user pressed media keys) — push to phone
                         _vm.WsService.Send(new { type = "volume", level = currentVol });
-                        Console.WriteLine($"[BroadcastSystemInfo] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
+                        Console.WriteLine($"[Broadcast] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
                     }
                     if (currentVol >= 0) _lastKnownVolume = currentVol;
 
                     if (currentBri >= 0 && currentBri != _lastKnownBrightness && _lastKnownBrightness >= 0)
                     {
-                        // PC brightness changed — push to phone
                         _vm.WsService.Send(new { type = "brightness", level = currentBri });
-                        Console.WriteLine($"[BroadcastSystemInfo] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
+                        Console.WriteLine($"[Broadcast] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
                     }
                     if (currentBri >= 0) _lastKnownBrightness = currentBri;
 
-                    // ── Lightweight state_update (battery, wifi, muted) ───
-                    var update = SystemInfoService.BuildStateUpdate();
-                    _vm.WsService.Send(update);
+                    // ── Check if any state actually changed before sending state_update ───
+                    bool changed = (currentVol != _lastKnownVolume  && _lastKnownVolume >= 0)
+                                || (currentBri != _lastKnownBrightness && _lastKnownBrightness >= 0)
+                                || batPct != _lastKnownBattery
+                                || charging != _lastKnownCharging
+                                || ssid != _lastKnownSsid
+                                || muted != _lastKnownMuted
+                                || _lastKnownBattery < 0;  // first run
 
-                    // Bluetooth (less frequent, but still useful live)
+                    // Update trackers
+                    _lastKnownBattery  = batPct;
+                    _lastKnownCharging = charging;
+                    _lastKnownSsid     = ssid;
+                    _lastKnownMuted    = muted;
+
+                    if (changed)
+                    {
+                        var update = SystemInfoService.BuildStateUpdate();
+                        _vm.WsService.Send(update);
+                    }
+
+                    // Bluetooth (always send — device list changes are hard to diff cheaply)
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
-
-                    // Wallpaper (only if it changed, checked via hash)
-                    var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
-                    if (wallChanged && !string.IsNullOrEmpty(wallB64))
-                        _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
 
                     // Media now-playing
                     var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
@@ -422,6 +446,33 @@ namespace NexLink
                     Console.WriteLine($"[BroadcastSystemInfo] Error: {ex.Message}");
                 }
             });
+        }
+
+        /// <summary>
+        /// Wallpaper sync every 5 seconds: always sends the current wallpaper.
+        /// Uses hash-based caching internally so only re-encodes when the image file changes.
+        /// </summary>
+        private void StartWallpaperTimer()
+        {
+            _wallpaperTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            _wallpaperTimer.Tick += (_, _) =>
+            {
+                if (!_vm.WsService.IsPhoneConnected) return;
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        var (wallB64, _) = SystemInfoService.GetWallpaperBase64Cached();
+                        if (!string.IsNullOrEmpty(wallB64))
+                            _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[WallpaperTimer] Error: {ex.Message}");
+                    }
+                });
+            };
+            _wallpaperTimer.Start();
         }
 
         // ─── Clipboard Watcher (PC → Phone) ───

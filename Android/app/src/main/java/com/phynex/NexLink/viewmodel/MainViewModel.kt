@@ -93,10 +93,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _nowPlaying = MutableStateFlow<NowPlaying?>(null)
     val nowPlaying: StateFlow<NowPlaying?> = _nowPlaying
 
-    private val _volume = MutableStateFlow(50)
+    private val _volume = MutableStateFlow(0)
     val volume: StateFlow<Int> = _volume
 
-    private val _brightness = MutableStateFlow(50)
+    private val _brightness = MutableStateFlow(0)
     val brightness: StateFlow<Int> = _brightness
 
     // Track what we last sent to PC so we can distinguish echoes from real PC-side changes
@@ -309,8 +309,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun setupSocketListeners() {
         socketClient.addListener("wifi_info") { json ->
             _wifiInfo.value = WifiInfo(
-                ssid     = json.safeStr("ssid", "Unknown"),
-                strength = json.safeInt("strength")
+                ssid      = json.safeStr("ssid", "Unknown"),
+                strength  = json.safeInt("strength"),
+                connected = json.safeBool("connected")
             )
         }
 
@@ -370,8 +371,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // WiFi
             json.getAsJsonObject("wifi")?.let { wifi ->
                 _wifiInfo.value = WifiInfo(
-                    ssid     = wifi.safeStr("ssid", "Unknown"),
-                    strength = wifi.safeInt("strength")
+                    ssid      = wifi.safeStr("ssid", "Unknown"),
+                    strength  = wifi.safeInt("strength"),
+                    connected = wifi.safeBool("connected")
                 )
             }
             // Battery
@@ -415,8 +417,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // WiFi
             json.getAsJsonObject("wifi")?.let { wifi ->
                 _wifiInfo.value = WifiInfo(
-                    ssid     = wifi.safeStr("ssid", _wifiInfo.value?.ssid ?: "Unknown"),
-                    strength = wifi.safeInt("strength", _wifiInfo.value?.strength ?: 0)
+                    ssid      = wifi.safeStr("ssid", _wifiInfo.value?.ssid ?: "Unknown"),
+                    strength  = wifi.safeInt("strength", _wifiInfo.value?.strength ?: 0),
+                    connected = wifi.safeBool("connected", _wifiInfo.value?.connected ?: false)
                 )
             }
             // Battery

@@ -10,7 +10,8 @@ data class DeviceInfo(
 
 data class WifiInfo(
     val ssid: String,
-    val strength: Int
+    val strength: Int,
+    val connected: Boolean = false
 )
 
 data class BatteryInfo(

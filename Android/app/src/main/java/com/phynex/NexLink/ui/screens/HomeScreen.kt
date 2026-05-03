@@ -118,9 +118,20 @@ fun HomeScreen(
                         Modifier.glassCard(RoundedCornerShape(50.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Wifi, null, tint = primary, modifier = Modifier.size(14.dp))
+                        Icon(
+                            if (wifiInfo?.connected == true) Icons.Default.Wifi else Icons.Default.WifiOff,
+                            null, tint = if (wifiInfo?.connected == true) primary else outline,
+                            modifier = Modifier.size(14.dp)
+                        )
                         Spacer(Modifier.width(6.dp))
-                        Text(wifiInfo?.ssid?.ifEmpty { "Not Connected" } ?: "—", style = MaterialTheme.typography.labelMedium, color = onBackground)
+                        Text(
+                            when {
+                                wifiInfo?.connected == true -> wifiInfo?.ssid ?: "Connected"
+                                wifiInfo != null -> "Not Connected"
+                                else -> "—"
+                            },
+                            style = MaterialTheme.typography.labelMedium, color = onBackground
+                        )
                         Spacer(Modifier.width(16.dp))
                         Box(Modifier.size(4.dp).clip(CircleShape).background(outlineVariant))
                         Spacer(Modifier.width(16.dp))
@@ -181,7 +192,14 @@ fun HomeScreen(
                     Modifier.fillMaxWidth().glassCard().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatusItem(Icons.Default.Wifi, wifiInfo?.ssid?.ifEmpty { "—" } ?: "—")
+                    StatusItem(
+                        if (wifiInfo?.connected == true) Icons.Default.Wifi else Icons.Default.WifiOff,
+                        when {
+                            wifiInfo?.connected == true -> wifiInfo?.ssid ?: "Wi-Fi"
+                            wifiInfo != null -> "Off"
+                            else -> "—"
+                        }
+                    )
 
                     // Battery with charging indicator
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -204,7 +222,7 @@ fun HomeScreen(
                         if (bluetoothEnabled) Icons.Default.Bluetooth else Icons.Default.BluetoothDisabled,
                         bluetoothDevices.firstOrNull()?.name ?: if (bluetoothEnabled) "On" else "Off"
                     )
-                    StatusItem(Icons.Default.VolumeUp, "${volume}%")
+                    StatusItem(Icons.Default.VolumeUp, if (volume > 0) "${volume}%" else "—")
                 }
 
                 Spacer(Modifier.height(24.dp))

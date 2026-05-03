@@ -105,7 +105,7 @@ namespace NexLink.Services
         }
 
         // ─── WiFi Info (real SSID via netsh) ───
-        public static (string ssid, int strength) GetWifiInfo()
+        public static (string ssid, int strength, bool connected) GetWifiInfo()
         {
             try
             {
@@ -138,22 +138,22 @@ namespace NexLink.Services
                     string ssid = ssidMatch.Groups[1].Value.Trim();
                     int.TryParse(sigMatch.Groups[1].Value.Trim(), out int quality);
                     Console.WriteLine($"[GetWifiInfo] SSID='{ssid}' Signal={quality}%");
-                    return (ssid, quality);
+                    return (ssid, quality, true);
                 }
 
                 if (output.Contains("There is no wireless interface"))
                 {
                     Console.WriteLine("[GetWifiInfo] No wireless interface");
-                    return ("No WiFi adapter", 0);
+                    return ("No WiFi adapter", 0, false);
                 }
 
                 Console.WriteLine("[GetWifiInfo] Not connected to any network");
-                return ("Not connected", 0);
+                return ("Not connected", 0, false);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[GetWifiInfo] FAILED: {ex.Message}");
-                return ("Error", 0);
+                return ("Error", 0, false);
             }
         }
 
@@ -249,72 +249,54 @@ namespace NexLink.Services
 
         // ─── Full system state snapshot ───
         /// <summary>
-        /// Builds a complete system_state with a pre-fetched wallpaper (used on connect).
+        /// Builds a complete system_state object to send to mobile on connect.
+        /// All values are read fresh — no caches, no fallback hardcoding.
         /// </summary>
-        public static object BuildSystemState(string? wallpaperB64 = null)
+        public static object BuildSystemState()
         {
-            var (ssid, strength)              = GetWifiInfo();
+            var (ssid, strength, wifiConn)    = GetWifiInfo();
             var (batLevel, charging, hasBatt) = GetBatteryInfo();
             var vol                           = GetVolume();
             var bri                           = GetBrightness();
             var muted                         = GetMuted();
             var btDevices                     = GetBluetoothDevices();
             var btEnabled                     = GetBluetoothEnabled();
-            if (wallpaperB64 == null)
-            {
-                var (wb, _) = GetWallpaperBase64Cached();
-                wallpaperB64 = wb ?? "";
-            }
-            var osVer = Environment.OSVersion.Version.Build >= 22000
-                        ? "Windows 11 Professional"
-                        : $"Windows {Environment.OSVersion.Version}";
-
-            // wifi connected = has an SSID (not error/unknown/not-connected strings)
-            bool wifiOk = !string.IsNullOrEmpty(ssid)
-                       && ssid != "Not connected"
-                       && ssid != "Not Connected"
-                       && ssid != "Unknown"
-                       && ssid != "No WiFi adapter"
-                       && ssid != "Error";
+            var (wallB64, _)                  = GetWallpaperBase64Cached();
+            var osVer                         = Environment.OSVersion.Version.Build >= 22000
+                                                ? "Windows 11 Professional"
+                                                : $"Windows {Environment.OSVersion.Version}";
 
             return new
             {
                 type       = "system_state",
-                wallpaper  = wallpaperB64,
+                wallpaper  = wallB64 ?? "",
                 deviceName = Environment.MachineName,
                 osVersion  = osVer,
-                wifi       = new { connected = wifiOk, ssid, strength },
+                wifi       = new { connected = wifiConn, ssid, strength },
                 battery    = new { percentage = batLevel, charging, hasBattery = hasBatt },
                 bluetooth  = new { enabled = btEnabled, connectedDevices = btDevices },
                 volume     = vol,
                 brightness = bri,
-                muted,
+                muted       = muted,
             };
         }
 
         // ─── Lightweight state update (no wallpaper) ───
         public static object BuildStateUpdate()
         {
-            var (ssid, strength)              = GetWifiInfo();
+            var (ssid, strength, wifiConn)    = GetWifiInfo();
             var (batLevel, charging, hasBatt) = GetBatteryInfo();
             var vol                           = GetVolume();
             var bri                           = GetBrightness();
             var muted                         = GetMuted();
 
-            bool wifiOk = !string.IsNullOrEmpty(ssid)
-                       && ssid != "Not connected"
-                       && ssid != "Not Connected"
-                       && ssid != "Unknown"
-                       && ssid != "No WiFi adapter"
-                       && ssid != "Error";
-
             return new
             {
                 type       = "state_update",
                 volume     = vol,
-                muted,
+                muted       = muted,
                 brightness = bri,
-                wifi       = new { connected = wifiOk, ssid, strength },
+                wifi       = new { connected = wifiConn, ssid, strength },
                 battery    = new { percentage = batLevel, charging, hasBattery = hasBatt },
             };
         }
@@ -325,13 +307,6 @@ namespace NexLink.Services
         private static string _lastWallpaperB64  = "";
 
         public static (string b64, bool changed) GetWallpaperBase64Cached()
-            => GetWallpaperBase64(forceRefresh: false);
-
-        /// <summary>
-        /// Reads and encodes the wallpaper.
-        /// forceRefresh=true bypasses the hash cache — always returns the current wallpaper.
-        /// </summary>
-        public static (string b64, bool changed) GetWallpaperBase64(bool forceRefresh = false)
         {
             try
             {
@@ -344,21 +319,17 @@ namespace NexLink.Services
                         @"HKEY_CURRENT_USER\Control Panel\Desktop", "Wallpaper", "") as string ?? "";
 
                 if (string.IsNullOrEmpty(wallpaperPath) || !File.Exists(wallpaperPath))
-                {
-                    Console.WriteLine("[GetWallpaper] No wallpaper file found");
                     return (_lastWallpaperB64, false);
-                }
 
                 // Compute hash to detect changes without re-encoding
                 byte[] fileBytes = File.ReadAllBytes(wallpaperPath);
                 using var md5 = MD5.Create();
                 string hash = Convert.ToBase64String(md5.ComputeHash(fileBytes));
 
-                if (!forceRefresh && hash == _lastWallpaperHash && !string.IsNullOrEmpty(_lastWallpaperB64))
+                if (hash == _lastWallpaperHash && !string.IsNullOrEmpty(_lastWallpaperB64))
                     return (_lastWallpaperB64, false); // Not changed
 
                 // Re-encode at 800x450 JPEG
-                Console.WriteLine($"[GetWallpaper] Encoding wallpaper from: {wallpaperPath}");
                 using var bmp    = new Bitmap(new MemoryStream(fileBytes));
                 using var scaled = new Bitmap(800, 450);
                 using var g      = Graphics.FromImage(scaled);
@@ -372,14 +343,9 @@ namespace NexLink.Services
 
                 _lastWallpaperHash = hash;
                 _lastWallpaperB64  = Convert.ToBase64String(ms.ToArray());
-                Console.WriteLine($"[GetWallpaper] Encoded {_lastWallpaperB64.Length} chars");
                 return (_lastWallpaperB64, true);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[GetWallpaper] FAILED: {ex.Message}");
-                return (_lastWallpaperB64, false);
-            }
+            catch { return (_lastWallpaperB64, false); }
         }
 
         // ─── Process launcher ───
