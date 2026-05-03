@@ -3,6 +3,7 @@ package com.phynex.NexLink.ui.screens
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import com.phynex.NexLink.ui.theme.*
 import com.phynex.NexLink.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -35,8 +37,26 @@ fun HomeScreen(
     val batteryInfo by viewModel.batteryInfo.collectAsState()
     val wallpaperBase64 by viewModel.wallpaperBase64.collectAsState()
     val bluetoothDevices by viewModel.bluetoothDevices.collectAsState()
+    val bluetoothEnabled by viewModel.bluetoothEnabled.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val brightness by viewModel.brightness.collectAsState()
+    val volumeOsd by viewModel.volumeOsdTrigger.collectAsState()
+    val brightnessOsd by viewModel.brightnessOsdTrigger.collectAsState()
+
+    // OSD visibility
+    var osdLabel by remember { mutableStateOf<String?>(null) }
+    var osdIcon by remember { mutableStateOf("") }
+
+    LaunchedEffect(volumeOsd) {
+        volumeOsd ?: return@LaunchedEffect
+        osdIcon = "🔊"; osdLabel = "Volume: $volumeOsd%"
+        delay(2000); osdLabel = null
+    }
+    LaunchedEffect(brightnessOsd) {
+        brightnessOsd ?: return@LaunchedEffect
+        osdIcon = "☀"; osdLabel = "Brightness: $brightnessOsd%"
+        delay(2000); osdLabel = null
+    }
 
     Scaffold(
         containerColor = background,
@@ -44,17 +64,7 @@ fun HomeScreen(
             BottomNavigationBar(onNavigateToMusic, onNavigateToFileBrowser, onNavigateToAppLauncher)
         }
     ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(primary.copy(alpha = 0.05f), Color.Transparent),
-                        radius = 1000f
-                    )
-                )
-        ) {
+        Box(Modifier.fillMaxSize().padding(padding)) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -75,10 +85,7 @@ fun HomeScreen(
                         Text("NexLink", style = MaterialTheme.typography.headlineLarge, color = primary, fontWeight = FontWeight.Black)
                     }
                     Box(
-                        Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
+                        Modifier.size(40.dp).clip(CircleShape).border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
                     ) {
                         Icon(Icons.Default.Person, null, tint = primary, modifier = Modifier.align(Alignment.Center))
                     }
@@ -86,70 +93,56 @@ fun HomeScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Device Info & Status
+                // Device Info
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         deviceInfo?.deviceName ?: "DESKTOP-PC",
                         style = MaterialTheme.typography.titleLarge,
-                        color = primary,
-                        fontWeight = FontWeight.Bold
+                        color = primary, fontWeight = FontWeight.Bold
                     )
                     val connectionMode by viewModel.connectionMode.collectAsState()
-
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (isConnected) GreenLight else RedDisconnected)
-                        )
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (isConnected) GreenLight else RedDisconnected))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (isConnected) "CONNECTED • $connectionMode" else connectionMode.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = outline
+                            style = MaterialTheme.typography.labelSmall, color = outline
                         )
                     }
                 }
 
                 Spacer(Modifier.height(24.dp))
 
-                // WiFi Pill
+                // WiFi + BT Pills
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     Row(
-                        Modifier
-                            .glassCard(RoundedCornerShape(50.dp))
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        Modifier.glassCard(RoundedCornerShape(50.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Wifi, null, tint = primary, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(wifiInfo?.ssid ?: "—", style = MaterialTheme.typography.labelMedium, color = onBackground)
-                        Spacer(Modifier.width(12.dp))
-                        Box(
-                            Modifier
-                                .size(4.dp)
-                                .clip(CircleShape)
-                                .background(outlineVariant)
+                        Text(wifiInfo?.ssid?.ifEmpty { "Not Connected" } ?: "—", style = MaterialTheme.typography.labelMedium, color = onBackground)
+                        Spacer(Modifier.width(16.dp))
+                        Box(Modifier.size(4.dp).clip(CircleShape).background(outlineVariant))
+                        Spacer(Modifier.width(16.dp))
+                        Icon(
+                            Icons.Default.Bluetooth, null,
+                            tint = if (bluetoothEnabled) primary else outline,
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(Modifier.width(12.dp))
-                        Icon(Icons.Default.Bluetooth, null, tint = primary, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            bluetoothDevices.firstOrNull()?.name ?: "None",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = onBackground
+                            bluetoothDevices.firstOrNull()?.name ?: if (bluetoothEnabled) "On" else "Off",
+                            style = MaterialTheme.typography.labelMedium, color = onBackground
                         )
                     }
                 }
 
                 Spacer(Modifier.height(24.dp))
 
-                // Wallpaper Card - live wallpaper from PC
+                // Wallpaper Card
                 Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
+                    Modifier.fillMaxWidth().height(200.dp)
                         .clip(RoundedCornerShape(24.dp))
                         .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
                 ) {
@@ -158,79 +151,63 @@ fun HomeScreen(
                             val bytes = Base64.decode(b64, Base64.DEFAULT)
                             BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         }.getOrNull()?.let { bmp ->
-                            Image(
-                                bmp.asImageBitmap(), "Wallpaper",
-                                Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            Image(bmp.asImageBitmap(), "Wallpaper", Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                         }
-                    } ?: Box(Modifier.fillMaxSize().background(outlineVariant))
+                    } ?: Box(Modifier.fillMaxSize().background(
+                        Brush.linearGradient(listOf(Color(0xFF1A1A2E), Color(0xFF0D0D1A)))
+                    ))
 
-                    // Gradient overlay
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(Brush.verticalGradient(listOf(Color.Transparent, background)))
-                    )
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, background.copy(0.85f)))))
 
-                    Row(
-                        Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(24.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            Modifier
-                                .size(48.dp)
-                                .glassCard(RoundedCornerShape(16.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
+                    Row(Modifier.align(Alignment.BottomStart).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(48.dp).glassCard(RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.GridView, null, tint = Color.White)
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(
-                                deviceInfo?.deviceName ?: "Windows PC",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Windows 11 Professional",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = onBackground.copy(alpha = 0.7f)
-                            )
+                            Text(deviceInfo?.deviceName ?: "Windows PC", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Windows 11 Professional", style = MaterialTheme.typography.bodySmall, color = onBackground.copy(0.7f))
                         }
                     }
-
-                    Icon(
-                        Icons.Default.Cast, null,
-                        tint = primary.copy(alpha = 0.8f),
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(16.dp)
-                    )
+                    Icon(Icons.Default.Cast, null, tint = primary.copy(0.8f), modifier = Modifier.align(Alignment.TopEnd).padding(16.dp))
                 }
 
                 Spacer(Modifier.height(24.dp))
 
-                // System Status Bar - real data from PC
+                // System Status Bar
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .glassCard()
-                        .padding(16.dp),
+                    Modifier.fillMaxWidth().glassCard().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    StatusItem(Icons.Default.Wifi, wifiInfo?.ssid ?: "—")
-                    StatusItem(Icons.Default.BatteryStd, "${batteryInfo?.level ?: 0}%")
-                    StatusItem(Icons.Default.Bluetooth, bluetoothDevices.firstOrNull()?.name ?: "—")
+                    StatusItem(Icons.Default.Wifi, wifiInfo?.ssid?.ifEmpty { "—" } ?: "—")
+
+                    // Battery with charging indicator
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (batteryInfo?.isCharging == true) Icons.Default.BatteryChargingFull else Icons.Default.BatteryStd,
+                            null,
+                            tint = if (batteryInfo?.isCharging == true) GreenLight else primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${batteryInfo?.level ?: 0}%${if (batteryInfo?.isCharging == true) " ⚡" else ""}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = onBackground.copy(0.8f),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    StatusItem(
+                        if (bluetoothEnabled) Icons.Default.Bluetooth else Icons.Default.BluetoothDisabled,
+                        bluetoothDevices.firstOrNull()?.name ?: if (bluetoothEnabled) "On" else "Off"
+                    )
                     StatusItem(Icons.Default.VolumeUp, "${volume}%")
                 }
 
                 Spacer(Modifier.height(24.dp))
 
-                // Volume & Brightness
+                // Volume & Brightness sliders
                 VolumeBrightnessControl(Icons.Default.VolumeDown, "Master Volume", volume) { viewModel.sendVolume(it) }
                 Spacer(Modifier.height(16.dp))
                 VolumeBrightnessControl(Icons.Default.LightMode, "Screen Brightness", brightness) { viewModel.sendBrightness(it) }
@@ -241,9 +218,7 @@ fun HomeScreen(
                 Text("QUICK ACTIONS", style = MaterialTheme.typography.labelSmall, color = outline, letterSpacing = 2.sp)
                 Spacer(Modifier.height(16.dp))
                 Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     QuickAction(Icons.Default.Lock, "Lock") { viewModel.lockPC() }
@@ -255,6 +230,32 @@ fun HomeScreen(
 
                 Spacer(Modifier.height(48.dp))
             }
+
+            // ── Phone OSD overlay (bottom center) ───────────────────────
+            AnimatedVisibility(
+                visible = osdLabel != null,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+                exit  = fadeOut() + slideOutVertically(targetOffsetY  = { it / 2 }),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp)
+            ) {
+                osdLabel?.let { label ->
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color(0xDD111122),
+                        border = BorderStroke(1.dp, primary.copy(0.3f)),
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(osdIcon, style = MaterialTheme.typography.titleLarge)
+                            Spacer(Modifier.width(12.dp))
+                            Text(label, style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -264,13 +265,7 @@ fun StatusItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: Stri
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = primary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            color = onBackground.copy(alpha = 0.8f),
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
+        Text(text, style = MaterialTheme.typography.labelSmall, color = onBackground.copy(0.8f), fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
@@ -281,17 +276,8 @@ fun VolumeBrightnessControl(
     value: Int,
     onValueChange: (Int) -> Unit
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .glassCard()
-            .padding(24.dp)
-    ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Column(Modifier.fillMaxWidth().glassCard().padding(24.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = primary)
                 Spacer(Modifier.width(12.dp))
@@ -304,11 +290,7 @@ fun VolumeBrightnessControl(
             value = value.toFloat(),
             onValueChange = { onValueChange(it.toInt()) },
             valueRange = 0f..100f,
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = primary,
-                inactiveTrackColor = background
-            )
+            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = primary, inactiveTrackColor = background)
         )
     }
 }
@@ -316,12 +298,7 @@ fun VolumeBrightnessControl(
 @Composable
 fun QuickAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Box(
-            Modifier
-                .size(64.dp)
-                .glassCard(RoundedCornerShape(16.dp)),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(Modifier.size(64.dp).glassCard(RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = primary, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.height(8.dp))
@@ -332,10 +309,9 @@ fun QuickAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
 @Composable
 fun BottomNavigationBar(onMusic: () -> Unit, onFiles: () -> Unit, onApps: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(background.copy(alpha = 0.8f))
+            .background(background.copy(0.8f))
             .border(1.dp, GlassBorder, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .padding(vertical = 16.dp, horizontal = 24.dp),
         horizontalArrangement = Arrangement.SpaceBetween
@@ -356,22 +332,13 @@ fun BottomNavItem(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .run {
-                if (selected)
-                    background(primary.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                else
-                    padding(horizontal = 16.dp, vertical = 8.dp)
-            }
+        modifier = Modifier.clickable(onClick = onClick).run {
+            if (selected) background(primary.copy(0.1f), RoundedCornerShape(16.dp)).padding(horizontal = 16.dp, vertical = 8.dp)
+            else padding(horizontal = 16.dp, vertical = 8.dp)
+        }
     ) {
         Icon(icon, null, tint = if (selected) primary else outline)
         Spacer(Modifier.height(4.dp))
-        Text(
-            label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) primary else outline
-        )
+        Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = if (selected) primary else outline)
     }
 }

@@ -179,14 +179,13 @@ namespace NexLink.Services
                 "volume", "brightness", "lock_pc",
                 "media_control", "media_seek",
                 "app_list", "launch_app",
-                "browse", "open_file", "download_file",
+                "browse", "open_file", "download_file", "file_preview",
                 "clipboard_push", "clipboard_pull", "clipboard_sync",
                 "start_screen", "stop_screen",
                 "start_camera", "stop_camera",
                 "notification", "send_notification",
                 "sms_send",
                 "webrtc_offer", "webrtc_answer", "webrtc_ice",
-                // USB / mouse control
                 "mouse_move", "mouse_tap", "mouse_right_tap", "mouse_scroll",
                 "usb_connected", "usb_disconnected",
             };

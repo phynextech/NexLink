@@ -30,7 +30,10 @@ data class NowPlaying(
     val albumArtBase64: String?,
     val isPlaying: Boolean,
     val position: Double = 0.0,
-    val duration: Double = 0.0
+    val duration: Double = 0.0,
+    val appSource: String = "",      // e.g. "Spotify", "YouTube (Brave)"
+    val shuffleActive: Boolean = false,
+    val repeatMode: Int = 0           // 0=Off, 1=All, 2=One
 )
 
 data class AppItem(
@@ -44,7 +47,8 @@ data class FileItem(
     val path: String,
     val size: Long,
     val isDirectory: Boolean,
-    val type: String
+    val type: String,
+    val thumbnailBase64: String? = null
 )
 
 data class ClipboardItem(

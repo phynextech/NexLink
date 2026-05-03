@@ -41,6 +41,7 @@ namespace NexLink.Models
     {
         public string Type => "bt_info";
         public List<BluetoothDevice> Devices { get; set; } = new();
+        public bool BluetoothEnabled { get; set; }
     }
 
     public class NowPlayingMessage
@@ -50,6 +51,11 @@ namespace NexLink.Models
         public string Artist { get; set; } = "";
         public string? AlbumArtBase64 { get; set; }
         public bool IsPlaying { get; set; }
+        public double Position { get; set; }
+        public double Duration { get; set; }
+        public string AppSource { get; set; } = ""; // e.g. "Spotify", "YouTube (Brave)"
+        public bool ShuffleActive { get; set; }
+        public int RepeatMode { get; set; } // 0=Off, 1=All, 2=One
     }
 
     public class AppItem
@@ -72,6 +78,7 @@ namespace NexLink.Models
         public long Size { get; set; }
         public bool IsDirectory { get; set; }
         public string Type { get; set; } = "file";
+        public string? ThumbnailBase64 { get; set; } // For image files
     }
 
     public class FileListMessage

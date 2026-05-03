@@ -99,6 +99,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _brightness = MutableStateFlow(50)
     val brightness: StateFlow<Int> = _brightness
 
+    // OSD trigger flows (emit true when value changes externally from PC)
+    private val _volumeOsdTrigger = MutableStateFlow<Int?>(null)
+    val volumeOsdTrigger: StateFlow<Int?> = _volumeOsdTrigger
+
+    private val _brightnessOsdTrigger = MutableStateFlow<Int?>(null)
+    val brightnessOsdTrigger: StateFlow<Int?> = _brightnessOsdTrigger
+
+    private val _bluetoothEnabled = MutableStateFlow(false)
+    val bluetoothEnabled: StateFlow<Boolean> = _bluetoothEnabled
+
+    private val _filePreviewData = MutableStateFlow<Pair<String, String>?>(null) // path to data
+    val filePreviewData: StateFlow<Pair<String, String>?> = _filePreviewData
+
     private val _appList = MutableStateFlow<List<AppItem>>(emptyList())
     val appList: StateFlow<List<AppItem>> = _appList
 
@@ -307,6 +320,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (_: Exception) { null }
             } ?: emptyList()
             _bluetoothDevices.value = devices
+            _bluetoothEnabled.value = json.safeBool("bluetoothEnabled", devices.isNotEmpty())
         }
 
         socketClient.addListener("wallpaper") { json ->
@@ -314,11 +328,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         socketClient.addListener("volume") { json ->
-            _volume.value = json.safeInt("level", _volume.value)
+            val newVol = json.safeInt("level", _volume.value)
+            val old = _volume.value
+            _volume.value = newVol
+            if (newVol != old) _volumeOsdTrigger.value = newVol
         }
 
         socketClient.addListener("brightness") { json ->
-            _brightness.value = json.safeInt("level", _brightness.value)
+            val newBri = json.safeInt("level", _brightness.value)
+            val old = _brightness.value
+            _brightness.value = newBri
+            if (newBri != old) _brightnessOsdTrigger.value = newBri
         }
 
         socketClient.addListener("now_playing") { json ->
@@ -328,7 +348,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 albumArtBase64 = json.safeStr("album_art_base64"),
                 isPlaying      = json.safeBool("isPlaying"),
                 position       = json.safeDouble("position"),
-                duration       = json.safeDouble("duration")
+                duration       = json.safeDouble("duration"),
+                appSource      = json.safeStr("appSource", ""),
+                shuffleActive  = json.safeBool("shuffleActive"),
+                repeatMode     = json.safeInt("repeatMode")
             )
         }
 
@@ -351,11 +374,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     val obj = f.asJsonObject
                     FileItem(
-                        name        = obj.safeStr("name", ""),
-                        path        = obj.safeStr("path", ""),
-                        size        = obj.safeLong("size"),
-                        isDirectory = obj.safeBool("isDirectory"),
-                        type        = obj.safeStr("type", "file")
+                        name            = obj.safeStr("name", ""),
+                        path            = obj.safeStr("path", ""),
+                        size            = obj.safeLong("size"),
+                        isDirectory     = obj.safeBool("isDirectory"),
+                        type            = obj.safeStr("type", "file"),
+                        thumbnailBase64 = obj.safeStr("thumbnailBase64")
                     )
                 } catch (_: Exception) { null }
             } ?: emptyList()
@@ -394,7 +418,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("clipboard_pull")  { json -> addClipboard(json, "pc") }
         socketClient.addListener("clipboard_push")  { json -> addClipboard(json, "pc") }
-        socketClient.addListener("clipboard_sync")  { json -> addClipboard(json, "pc") }
+        socketClient.addListener("clipboard_sync")  { json ->
+            addClipboard(json, "pc")
+            // Auto-set Android clipboard when receiving text from PC
+            val text = json.safeStr("content") ?: return@addListener
+            if (text != "[Image]") {
+                try {
+                    val cm = getApplication<android.app.Application>()
+                        .getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("NexLink", text))
+                } catch (_: Exception) {}
+            }
+        }
 
         socketClient.addListener("sms_list") { json ->
             val threads = json.getAsJsonArray("threads")?.mapNotNull { t ->
@@ -434,6 +470,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("camera_frame") { json ->
             _cameraFrameBase64.value = json.safeStr("data")
+        }
+
+        socketClient.addListener("file_preview_data") { json ->
+            val path = json.safeStr("path", "")
+            val data = json.safeStr("data", "")
+            _filePreviewData.value = Pair(path, data)
         }
 
         socketClient.addListener("usb_connected") { _ ->
@@ -522,6 +564,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openFile(path: String) = socketClient.sendMessage(mapOf("type" to "open_file", "path" to path))
+
+    fun requestFilePreview(path: String) {
+        _filePreviewData.value = null
+        socketClient.sendMessage(mapOf("type" to "file_preview", "path" to path))
+    }
+
+    fun clearFilePreview() { _filePreviewData.value = null }
 
     fun downloadFile(path: String) = socketClient.sendMessage(mapOf("type" to "download_file", "path" to path))
 

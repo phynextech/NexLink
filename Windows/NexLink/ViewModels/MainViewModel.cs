@@ -281,24 +281,25 @@ namespace NexLink.ViewModels
 
         private void SendSystemInfo()
         {
-            var wifiSsid = WebSocketService.GetWifiSSID();
+            var (ssid, strength) = SystemInfoService.GetWifiInfo();
             var (battLevel, battCharging) = SystemInfoService.GetBatteryInfo();
             var volume = SystemInfoService.GetVolume();
-            // Brightness getter doesn't exist yet, we'll assume 50 for now
-            WsService.Send(new { type = "wifi_info", ssid = wifiSsid, strength = 80 });
+            var brightness = SystemInfoService.GetBrightness();
+            var btDevices = SystemInfoService.GetBluetoothDevices();
+            var btEnabled = SystemInfoService.GetBluetoothEnabled();
+            WsService.Send(new { type = "wifi_info", ssid, strength });
             WsService.Send(new { type = "battery_info", level = battLevel, isCharging = battCharging });
-            WsService.Send(new { type = "bt_info", devices = SystemInfoService.GetBluetoothDevices() });
+            WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
             WsService.Send(new { type = "volume", level = volume });
-            // WsService.Send(new { type = "brightness", level = 50 });
+            WsService.Send(new { type = "brightness", level = brightness });
         }
 
         private void SendWallpaper()
         {
             Task.Run(async () =>
             {
-                // Delay slightly to avoid overwhelming a freshly established connection
                 await Task.Delay(3000);
-                var b64 = ScreenCaptureService.GetWallpaperBase64();
+                var (b64, _) = SystemInfoService.GetWallpaperBase64Cached();
                 if (!string.IsNullOrEmpty(b64) && IsConnected)
                     WsService.Send(new { type = "wallpaper", data = b64 });
             });
@@ -367,18 +368,21 @@ namespace NexLink.ViewModels
                 {
                     if (IsConnected)
                     {
-                        var (title, artist, albumArt, isPlaying, pos, dur) = await MediaControlService.GetNowPlayingAsync();
-                        NowPlayingTitle = title;
-                        NowPlayingArtist = artist;
+                        var np = await MediaControlService.GetNowPlayingAsync();
+                        NowPlayingTitle  = np.Title;
+                        NowPlayingArtist = np.Artist;
                         WsService.Send(new
                         {
-                            type = "now_playing",
-                            title,
-                            artist,
-                            album_art_base64 = albumArt,
-                            isPlaying,
-                            position = pos,
-                            duration = dur
+                            type             = "now_playing",
+                            title            = np.Title,
+                            artist           = np.Artist,
+                            album_art_base64 = np.AlbumArtBase64,
+                            isPlaying        = np.IsPlaying,
+                            position         = np.PositionSec,
+                            duration         = np.DurationSec,
+                            appSource        = np.AppSource,
+                            shuffleActive    = np.ShuffleActive,
+                            repeatMode       = np.RepeatMode,
                         });
                     }
                     await Task.Delay(1000);

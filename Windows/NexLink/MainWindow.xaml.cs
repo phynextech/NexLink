@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using NexLink.Models;
 using NexLink.Services;
 using NexLink.ViewModels;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace NexLink
 {
@@ -17,9 +20,18 @@ namespace NexLink
         private readonly MainViewModel _vm = new();
         private readonly List<ClipboardItem> _clipboardItems = new();
 
-        // Cloud identity — loaded from local settings or generated on first run
+        // Cloud identity
         private string _userId   = "";
         private string _deviceId = "";
+
+        // 2-second broadcast timer
+        private DispatcherTimer? _broadcastTimer;
+
+        // Clipboard monitoring
+        private string _lastClipboardHash = "";
+        private DispatcherTimer? _clipboardTimer;
+
+        // Volume/brightness tracking — reserved for future delta detection
 
         public MainWindow()
         {
@@ -34,6 +46,8 @@ namespace NexLink
             StartServer();
             await InitRelayPairingAsync();
             PopulateAppsTab();
+            StartBroadcastTimer();
+            StartClipboardWatcher();
         }
 
         private async Task InitRelayPairingAsync()
@@ -125,7 +139,7 @@ namespace NexLink
                             break;
 
                         case "battery_info":
-                            var lvl     = msg["level"]?.ToObject<int>() ?? 0;
+                            var lvl      = msg["level"]?.ToObject<int>() ?? 0;
                             var charging = msg["isCharging"]?.ToObject<bool>() ?? false;
                             BatteryLabel.Text = $"{lvl}%{(charging ? " ⚡" : "")}";
                             break;
@@ -150,13 +164,118 @@ namespace NexLink
                             break;
 
                         case "clipboard_push":
-                            var content = msg["content"]?.ToString() ?? "";
-                            if (!string.IsNullOrEmpty(content))
+                        case "clipboard_sync":
+                            var clipContent = msg["content"]?.ToString() ?? "";
+                            if (!string.IsNullOrEmpty(clipContent))
                             {
-                                _clipboardItems.Insert(0, new ClipboardItem { Content = content });
+                                // Set Windows clipboard
+                                try { System.Windows.Clipboard.SetText(clipContent); } catch { }
+                                _clipboardItems.Insert(0, new ClipboardItem { Content = clipContent });
                                 ClipboardList.ItemsSource = null;
                                 ClipboardList.ItemsSource = _clipboardItems;
+                                // Update last hash so we don't echo back
+                                _lastClipboardHash = clipContent.GetHashCode().ToString();
                             }
+                            // Handle image clipboard from phone
+                            var imgData = msg["image"]?.ToString();
+                            if (!string.IsNullOrEmpty(imgData))
+                            {
+                                try
+                                {
+                                    var bytes = Convert.FromBase64String(imgData);
+                                    using var ms = new System.IO.MemoryStream(bytes);
+                                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                                    bmp.BeginInit(); bmp.StreamSource = ms; bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bmp.EndInit();
+                                    System.Windows.Clipboard.SetImage(bmp);
+                                    _lastClipboardHash = imgData.GetHashCode().ToString();
+                                } catch { }
+                            }
+                            break;
+
+                        case "volume":
+                            var newVol = msg["level"]?.ToObject<int>() ?? -1;
+                            if (newVol >= 0)
+                            {
+                                SystemInfoService.SetVolume(newVol);
+                                ShowWindowsOsd("🔊", $"Volume: {newVol}%");
+                            }
+                            break;
+
+                        case "brightness":
+                            var newBri = msg["level"]?.ToObject<int>() ?? -1;
+                            if (newBri >= 0)
+                            {
+                                SystemInfoService.SetBrightness(newBri);
+                                ShowWindowsOsd("☀", $"Brightness: {newBri}%");
+                            }
+                            break;
+
+                        case "media_control":
+                            var action = msg["action"]?.ToString() ?? "";
+                            if (action == "shuffle")
+                                _ = MediaControlService.ToggleShuffleAsync();
+                            else if (action == "repeat")
+                                _ = MediaControlService.ToggleRepeatAsync();
+                            else
+                                MediaControlService.SendMediaKey(action);
+                            break;
+
+                        case "media_seek":
+                            var pos = msg["position"]?.ToObject<double>() ?? 0;
+                            _ = MediaControlService.SetPlaybackPositionAsync(pos);
+                            break;
+
+                        case "browse":
+                            var browsePath = msg["path"]?.ToString() ?? "root";
+                            Task.Run(() =>
+                            {
+                                try
+                                {
+                                    var files = SystemInfoService.BrowsePath(browsePath);
+                                    var fileJson = new JObject
+                                    {
+                                        ["type"]  = "file_list",
+                                        ["path"]  = browsePath,
+                                        ["files"] = Newtonsoft.Json.Linq.JArray.FromObject(files)
+                                    };
+                                    _vm.WsService.SendRaw(fileJson.ToString());
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[Browse] Error: {ex.Message}");
+                                    _vm.WsService.Send(new { type = "file_list", path = browsePath, files = Array.Empty<object>() });
+                                }
+                            });
+                            break;
+
+                        case "file_preview":
+                            var previewPath = msg["path"]?.ToString() ?? "";
+                            Task.Run(() =>
+                            {
+                                var preview = SystemInfoService.GetFilePreviewBase64(previewPath);
+                                _vm.WsService.Send(new { type = "file_preview_data", path = previewPath, data = preview ?? "" });
+                            });
+                            break;
+
+                        case "download_file":
+                            var dlPath = msg["path"]?.ToString() ?? "";
+                            _ = Task.Run(() => SystemInfoService.SendFileChunkedAsync(dlPath, chunk =>
+                            {
+                                _vm.WsService.SendRaw(chunk.ToString());
+                            }));
+                            break;
+
+                        case "request_info":
+                            BroadcastSystemInfo();
+                            break;
+
+                        case "get_wallpaper":
+                            Task.Run(() =>
+                            {
+                                var (b64, _) = SystemInfoService.GetWallpaperBase64Cached();
+                                if (!string.IsNullOrEmpty(b64))
+                                    _vm.WsService.Send(new { type = "wallpaper", data = b64 });
+                            });
                             break;
                     }
                 });
@@ -167,6 +286,173 @@ namespace NexLink
                     "LinkBridge", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        // ─── 2-Second Broadcast Timer ───
+        private void StartBroadcastTimer()
+        {
+            _broadcastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _broadcastTimer.Tick += (_, _) =>
+            {
+                if (_vm.WsService.IsPhoneConnected)
+                    BroadcastSystemInfo();
+            };
+            _broadcastTimer.Start();
+        }
+
+        private void BroadcastSystemInfo()
+        {
+            Task.Run(() =>
+            {
+                try
+                {
+                    // WiFi
+                    var (ssid, strength) = SystemInfoService.GetWifiInfo();
+                    _vm.WsService.Send(new { type = "wifi_info", ssid, strength });
+
+                    // Battery
+                    var (batLevel, isCharging) = SystemInfoService.GetBatteryInfo();
+                    _vm.WsService.Send(new { type = "battery_info", level = batLevel, isCharging });
+
+                    // Bluetooth
+                    var btDevices = SystemInfoService.GetBluetoothDevices();
+                    var btEnabled = SystemInfoService.GetBluetoothEnabled();
+                    _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
+
+                    // Volume
+                    var vol = SystemInfoService.GetVolume();
+                    _vm.WsService.Send(new { type = "volume", level = vol });
+
+                    // Brightness
+                    var bri = SystemInfoService.GetBrightness();
+                    _vm.WsService.Send(new { type = "brightness", level = bri });
+
+                    // Wallpaper (only if changed)
+                    var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
+                    if (wallChanged && !string.IsNullOrEmpty(wallB64))
+                        _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
+
+                    // Now playing media
+                    var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
+                    _vm.WsService.Send(new
+                    {
+                        type             = "now_playing",
+                        title            = np.Title,
+                        artist           = np.Artist,
+                        album_art_base64 = np.AlbumArtBase64,
+                        isPlaying        = np.IsPlaying,
+                        position         = np.PositionSec,
+                        duration         = np.DurationSec,
+                        appSource        = np.AppSource,
+                        shuffleActive    = np.ShuffleActive,
+                        repeatMode       = np.RepeatMode,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[BroadcastSystemInfo] Error: {ex.Message}");
+                }
+            });
+        }
+
+        // ─── Clipboard Watcher (PC → Phone) ───
+        private void StartClipboardWatcher()
+        {
+            _clipboardTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _clipboardTimer.Tick += (_, _) =>
+            {
+                if (!_vm.WsService.IsPhoneConnected) return;
+                try
+                {
+                    if (System.Windows.Clipboard.ContainsText())
+                    {
+                        var text = System.Windows.Clipboard.GetText();
+                        var hash = text.GetHashCode().ToString();
+                        if (hash != _lastClipboardHash)
+                        {
+                            _lastClipboardHash = hash;
+                            _vm.WsService.Send(new { type = "clipboard_sync", content = text });
+                        }
+                    }
+                    else if (System.Windows.Clipboard.ContainsImage())
+                    {
+                        var img = System.Windows.Clipboard.GetImage();
+                        if (img != null)
+                        {
+                            var hash = img.GetHashCode().ToString();
+                            if (hash != _lastClipboardHash)
+                            {
+                                _lastClipboardHash = hash;
+                                // Encode image as base64 PNG
+                                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(img));
+                                using var ms = new System.IO.MemoryStream();
+                                encoder.Save(ms);
+                                var b64 = Convert.ToBase64String(ms.ToArray());
+                                _vm.WsService.Send(new { type = "clipboard_sync", content = "[Image]", image = b64 });
+                            }
+                        }
+                    }
+                }
+                catch { }
+            };
+            _clipboardTimer.Start();
+        }
+
+        // ─── Windows OSD Notification ───
+        private System.Windows.Window? _osdWindow;
+        private System.Threading.Timer? _osdHideTimer;
+
+        private void ShowWindowsOsd(string icon, string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _osdHideTimer?.Dispose();
+
+                if (_osdWindow == null)
+                {
+                    _osdWindow = new System.Windows.Window
+                    {
+                        Width           = 220,
+                        Height          = 52,
+                        WindowStyle     = WindowStyle.None,
+                        AllowsTransparency = true,
+                        Background      = new SolidColorBrush(Color.FromArgb(220, 15, 15, 25)),
+                        Topmost         = true,
+                        ShowInTaskbar   = false,
+                        ResizeMode      = ResizeMode.NoResize,
+                        Left            = SystemParameters.WorkArea.Width - 240,
+                        Top             = SystemParameters.WorkArea.Height - 80,
+                    };
+                    var border = new Border
+                    {
+                        CornerRadius = new CornerRadius(14),
+                        Background   = new SolidColorBrush(Color.FromArgb(220, 20, 20, 35)),
+                        BorderBrush  = new SolidColorBrush(Color.FromArgb(80, 100, 100, 255)),
+                        BorderThickness = new Thickness(1),
+                    };
+                    var sp = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                    var iconTb = new TextBlock { FontSize = 18, Margin = new Thickness(12, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+                    var msgTb  = new TextBlock { FontSize = 14, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 12, 0) };
+                    sp.Children.Add(iconTb);
+                    sp.Children.Add(msgTb);
+                    border.Child = sp;
+                    _osdWindow.Content = border;
+                    // Tag children for update
+                    _osdWindow.Tag = (iconTb, msgTb);
+                }
+
+                if (_osdWindow.Tag is (TextBlock itb, TextBlock mtb))
+                {
+                    itb.Text = icon;
+                    mtb.Text = message;
+                }
+
+                _osdWindow.Show();
+                _osdHideTimer = new System.Threading.Timer(_ =>
+                    Dispatcher.Invoke(() => _osdWindow?.Hide()), null, 2000, Timeout.Infinite);
+            });
+        }
+
 
         private void GenerateQR()
         {
