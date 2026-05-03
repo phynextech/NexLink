@@ -322,37 +322,48 @@ namespace NexLink
         /// </summary>
         private void SendSystemState()
         {
-            try
+            Task.Run(() =>
             {
-                // Build full snapshot (reads wallpaper, all hardware values)
-                var state = SystemInfoService.BuildSystemState();
-                _vm.WsService.Send(state);
-
-                // Also push media state
-                var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
-                _vm.WsService.Send(new
+                try
                 {
-                    type             = "now_playing",
-                    title            = np.Title,
-                    artist           = np.Artist,
-                    album_art_base64 = np.AlbumArtBase64,
-                    isPlaying        = np.IsPlaying,
-                    position         = np.PositionSec,
-                    duration         = np.DurationSec,
-                    appSource        = np.AppSource,
-                    shuffleActive    = np.ShuffleActive,
-                    repeatMode       = np.RepeatMode,
-                });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[SendSystemState] Error: {ex.Message}");
-            }
+                    // Force-read wallpaper ignoring hash cache (this IS the initial sync)
+                    var (wallB64, _) = SystemInfoService.GetWallpaperBase64(forceRefresh: true);
+
+                    // Build the full state with all real values
+                    var state = SystemInfoService.BuildSystemState(wallB64);
+                    _vm.WsService.Send(state);
+                    Console.WriteLine("[SendSystemState] Sent full system_state to phone");
+
+                    // Also push current media state
+                    var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
+                    _vm.WsService.Send(new
+                    {
+                        type             = "now_playing",
+                        title            = np.Title,
+                        artist           = np.Artist,
+                        album_art_base64 = np.AlbumArtBase64,
+                        isPlaying        = np.IsPlaying,
+                        position         = np.PositionSec,
+                        duration         = np.DurationSec,
+                        appSource        = np.AppSource,
+                        shuffleActive    = np.ShuffleActive,
+                        repeatMode       = np.RepeatMode,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SendSystemState] Error: {ex.Message}");
+                }
+            });
         }
 
+        // Track last volume/brightness to detect PC-side changes (keyboard, apps, etc.)
+        private int _lastSentVolume = -1;
+        private int _lastSentBrightness = -1;
+
         /// <summary>
-        /// Sends a lightweight state_update every 2 seconds (no wallpaper, no media art).
-        /// Keeps sliders and status chips in sync.
+        /// Sends a lightweight state_update every 2 seconds.
+        /// Also detects PC-side volume/brightness changes and pushes them immediately.
         /// </summary>
         private void BroadcastSystemInfo()
         {
@@ -360,16 +371,24 @@ namespace NexLink
             {
                 try
                 {
-                    // Lightweight: volume, brightness, wifi, battery, mute
                     var update = SystemInfoService.BuildStateUpdate();
                     _vm.WsService.Send(update);
 
-                    // Bluetooth (less frequent, but still useful live)
+                    // Detect PC-side volume changes (keyboard / other apps)
+                    var curVol = SystemInfoService.GetVolume();
+                    if (curVol >= 0 && curVol != _lastSentVolume)
+                    {
+                        _lastSentVolume = curVol;
+                        // Push a dedicated volume event so Android OSD shows
+                        _vm.WsService.Send(new { type = "volume", level = curVol });
+                    }
+
+                    // Bluetooth
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
                     _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
 
-                    // Wallpaper (only if it changed, checked via hash)
+                    // Wallpaper (only if changed via hash check)
                     var (wallB64, wallChanged) = SystemInfoService.GetWallpaperBase64Cached();
                     if (wallChanged && !string.IsNullOrEmpty(wallB64))
                         _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });

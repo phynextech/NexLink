@@ -143,8 +143,8 @@ class NexLinkSocketClient {
                 // Wait 1.5s for registration to propagate on the relay before asking
                 scope.launch {
                     delay(1500)
-                    val req = JSONObject().apply { put("type", "request_info") }
-                    sock.emit("message", req)
+                    // Emit directly as the event name, NOT wrapped in "message"
+                    sock.emit("request_info", JSONObject().apply { put("source", "mobile_connect") })
                     Log.d(TAG, "Sent request_info on connect (delayed 1.5s)")
                 }
             }
@@ -170,9 +170,9 @@ class NexLinkSocketClient {
                 Log.d(TAG, "Peer (laptop) came online")
                 _isPeerOnline.value = true
 
-                // Request all real system state from Windows immediately
-                val req = JSONObject().apply { put("type", "request_info") }
-                sock.emit("message", req)
+                // Emit request_info directly as its own event — NOT wrapped in "message"
+                // Windows only listens on named events, not on a generic "message" event
+                sock.emit("request_info", JSONObject().apply { put("source", "peer_online") })
                 Log.d(TAG, "Sent request_info to PC after peer came online")
             }
 

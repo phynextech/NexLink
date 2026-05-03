@@ -631,12 +631,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendVolume(level: Int) {
-        _volume.value = level
+        // Do NOT update _volume.value here — wait for volume_ack from PC
+        // Updating it immediately causes the slider to reset mid-drag
         socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
     }
 
     fun sendBrightness(level: Int) {
-        _brightness.value = level
+        // Do NOT update _brightness.value here — wait for brightness_ack from PC
         socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
     }
 

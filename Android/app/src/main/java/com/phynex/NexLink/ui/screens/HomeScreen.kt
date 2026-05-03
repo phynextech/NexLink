@@ -283,6 +283,16 @@ fun VolumeBrightnessControl(
     value: Int,
     onValueChange: (Int) -> Unit
 ) {
+    // Local state tracks the value while user is dragging
+    // This prevents state_update (every 2s from PC) from resetting the slider mid-drag
+    var isDragging by remember { mutableStateOf(false) }
+    var localValue by remember { mutableFloatStateOf(value.toFloat()) }
+
+    // Only sync from ViewModel when NOT actively dragging
+    LaunchedEffect(value) {
+        if (!isDragging) localValue = value.toFloat()
+    }
+
     Column(Modifier.fillMaxWidth().glassCard().padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -290,12 +300,20 @@ fun VolumeBrightnessControl(
                 Spacer(Modifier.width(12.dp))
                 Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
             }
-            Text("$value", style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
+            Text("${localValue.toInt()}", style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(16.dp))
         Slider(
-            value = value.toFloat(),
-            onValueChange = { onValueChange(it.toInt()) },
+            value = localValue,
+            onValueChange = {
+                isDragging = true
+                localValue = it
+            },
+            onValueChangeFinished = {
+                // Only send to PC when user lifts finger — not on every pixel moved
+                isDragging = false
+                onValueChange(localValue.toInt())
+            },
             valueRange = 0f..100f,
             colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = primary, inactiveTrackColor = background)
         )

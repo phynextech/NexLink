@@ -188,6 +188,7 @@ namespace NexLink.Services
                 "webrtc_offer", "webrtc_answer", "webrtc_ice",
                 "mouse_move", "mouse_tap", "mouse_right_tap", "mouse_scroll",
                 "usb_connected", "usb_disconnected",
+                "message", // generic fallback — Android may wrap events in {type:...}
             };
 
             foreach (var ev in events)
@@ -215,9 +216,20 @@ namespace NexLink.Services
 
                         if (msg == null) msg = new JObject();
 
-                        if (!msg.ContainsKey("type"))
-                            msg["type"] = eventName;
+                        // If this is the generic "message" wrapper, extract inner type
+                        // e.g. emit("message", {type:"request_info"}) → treat as request_info
+                        string resolvedType;
+                        if (eventName == "message" && msg.ContainsKey("type"))
+                            resolvedType = msg["type"]!.ToString();
+                        else
+                            resolvedType = eventName;
 
+                        if (!msg.ContainsKey("type"))
+                            msg["type"] = resolvedType;
+                        else
+                            msg["type"] = resolvedType; // always normalise
+
+                        Console.WriteLine($"[Socket.IO] ← {resolvedType}");
                         MessageReceived?.Invoke(msg);
                     }
                     catch (Exception ex)
