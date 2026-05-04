@@ -8,6 +8,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SocketIOClient;
 using SocketIOClient.Transport;
+using System.Text.Json;
 
 namespace NexLink.Services
 {
@@ -178,7 +179,7 @@ namespace NexLink.Services
                 "handshake", "request_info", "get_wallpaper",
                 "volume", "brightness", "lock_pc",
                 "media_control", "media_seek",
-                "app_list", "launch_app",
+                "app_list", "launch_app", "request_running_apps", "close_app", "focus_app",
                 "browse", "open_file", "download_file", "file_preview",
                 "clipboard_push", "clipboard_pull", "clipboard_sync",
                 "start_screen", "stop_screen",
@@ -188,6 +189,7 @@ namespace NexLink.Services
                 "webrtc_offer", "webrtc_answer", "webrtc_ice",
                 "mouse_move", "mouse_tap", "mouse_right_tap", "mouse_scroll",
                 "usb_connected", "usb_disconnected",
+                "mobile_wallpaper", "battery_info", "wifi_info", "bt_info"
             };
 
             foreach (var ev in events)
@@ -199,12 +201,15 @@ namespace NexLink.Services
                     {
                         JObject? msg = null;
                         
-                        // Try getting as JObject directly (standard for Socket.IO object emits)
-                        try { msg = response.GetValue<JObject>(0); } catch { }
+                        try 
+                        { 
+                            var elem = response.GetValue<System.Text.Json.JsonElement>(0);
+                            msg = JObject.Parse(elem.GetRawText());
+                        } 
+                        catch { }
 
                         if (msg == null)
                         {
-                            // Try getting as string and parsing (fallback)
                             try 
                             { 
                                 var raw = response.GetValue<string>(0);
@@ -218,6 +223,7 @@ namespace NexLink.Services
                         if (!msg.ContainsKey("type"))
                             msg["type"] = eventName;
 
+                        Console.WriteLine($"[Socket.IO] Received event: {eventName}");
                         MessageReceived?.Invoke(msg);
                     }
                     catch (Exception ex)
@@ -260,7 +266,11 @@ namespace NexLink.Services
                             msg.Remove("type");
 
                             if (_socket?.Connected == true)
-                                await _socket.EmitAsync(eventType, msg);
+                            {
+                                var cleanJson = msg.ToString(Newtonsoft.Json.Formatting.None);
+                                using var doc = JsonDocument.Parse(cleanJson);
+                                await _socket.EmitAsync(eventType, doc.RootElement);
+                            }
 
                             await Task.Delay(15, token);
                         }

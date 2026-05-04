@@ -85,8 +85,8 @@ namespace NexLink.Services
                     case WM_DRAWCLIPBOARD:
                         try
                         {
-                            if (System.Windows.Clipboard.ContainsText())
-                                ClipboardChanged?.Invoke(System.Windows.Clipboard.GetText());
+                            if (System.Windows.Forms.Clipboard.ContainsText())
+                                ClipboardChanged?.Invoke(System.Windows.Forms.Clipboard.GetText());
                         }
                         catch { }
                         SendMessage(_nextViewer, m.Msg, m.WParam, m.LParam);

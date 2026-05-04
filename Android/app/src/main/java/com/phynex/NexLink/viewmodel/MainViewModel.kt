@@ -1,7 +1,17 @@
 package com.phynex.NexLink.viewmodel
 
 import android.app.Application
+import android.content.ContentResolver
+import android.content.ContentUris
+import android.media.AudioManager
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
+import android.net.Uri
 import android.os.Environment
+import android.provider.ContactsContract
+import android.provider.Telephony
+import android.telephony.SmsManager
 import android.util.Base64
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -21,21 +31,22 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
-// ── Safe JSON helpers (guard against JsonArray instead of JsonPrimitive) ───
+// ── Safe JSON helpers (guard against JsonArray instead of JsonPrimitive and handle PascalCase) ───
+private fun JsonObject.safeGet(key: String) = get(key) ?: get(key.replaceFirstChar { it.uppercase() })
 private fun JsonObject.safeStr(key: String, default: String = ""): String =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asString ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asString ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeStr(key: String): String? =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asString } catch (_: Exception) { null }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asString } catch (_: Exception) { null }
 private fun JsonObject.safeInt(key: String, default: Int = 0): Int =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asInt ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asInt ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeBool(key: String, default: Boolean = false): Boolean =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asBoolean ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asBoolean ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeDouble(key: String, default: Double = 0.0): Double =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asDouble ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asDouble ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeFloat(key: String, default: Float = 0f): Float =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asFloat ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asFloat ?: default } catch (_: Exception) { default }
 private fun JsonObject.safeLong(key: String, default: Long = 0L): Long =
-    try { get(key)?.takeIf { it.isJsonPrimitive }?.asLong ?: default } catch (_: Exception) { default }
+    try { safeGet(key)?.takeIf { it.isJsonPrimitive }?.asLong ?: default } catch (_: Exception) { default }
 
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -131,6 +142,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _pinnedApps = MutableStateFlow<List<AppItem>>(emptyList())
     val pinnedApps: StateFlow<List<AppItem>> = _pinnedApps
 
+    private val _runningApps = MutableStateFlow<List<AppItem>>(emptyList())
+    val runningApps: StateFlow<List<AppItem>> = _runningApps
+
+    private val _performance = MutableStateFlow(PerformanceMetrics())
+    val performance: StateFlow<PerformanceMetrics> = _performance
+
     private val _currentPath = MutableStateFlow("root")
     val currentPath: StateFlow<String> = _currentPath
 
@@ -164,11 +181,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isStreamingCamera = MutableStateFlow(false)
     val isStreamingCamera: StateFlow<Boolean> = _isStreamingCamera
 
+    // ── Mobile-side status (sent to Windows in real-time) ──────────────────
+    private val _mobileStatus = MutableStateFlow(MobileStatus())
+    val mobileStatus: StateFlow<MobileStatus> = _mobileStatus
+
+    private var audioTrack: AudioTrack? = null
+
     private val _toastMessage = MutableStateFlow<String?>(null)
     val toastMessage: StateFlow<String?> = _toastMessage
 
     private var currentDownloadFile: FileOutputStream? = null
     private var currentDownloadName: String? = null
+
+    private val prefs = application.getSharedPreferences("NexLinkPrefs", android.content.Context.MODE_PRIVATE)
+
+    private val _themeMode = MutableStateFlow(prefs.getString("theme_mode", "System") ?: "System")
+    val themeMode: StateFlow<String> = _themeMode
+
+    private val _primaryColor = MutableStateFlow(prefs.getString("primary_color", "Monochrome") ?: "Monochrome")
+    val primaryColor: StateFlow<String> = _primaryColor
+
+    fun setThemeMode(mode: String) {
+        _themeMode.value = mode
+        prefs.edit().putString("theme_mode", mode).apply()
+    }
+
+    fun setPrimaryColor(color: String) {
+        _primaryColor.value = color
+        prefs.edit().putString("primary_color", color).apply()
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     init {
@@ -445,6 +486,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _lastSentBrightness = -1
             }
             _muted.value = json.safeBool("muted", _muted.value)
+
+            // Tunnel running_apps through state_update to bypass Render event filtering
+            json.getAsJsonArray("running_apps")?.let { arr ->
+                val apps = arr.mapNotNull { a ->
+                    try {
+                        val obj = a.asJsonObject
+                        AppItem(
+                            name       = obj.safeStr("Name", obj.safeStr("name", "")),
+                            path       = obj.safeStr("Path", obj.safeStr("path", "")),
+                            iconBase64 = obj.safeStr("IconBase64", obj.safeStr("icon", "")),
+                            category   = obj.safeStr("Category", obj.safeStr("category", "Desktop 1")),
+                            handle     = obj.safeStr("Handle", obj.safeStr("handle", "")),
+                            isForeground = obj.safeBool("IsForeground", false)
+                        )
+                    } catch (_: Exception) { null }
+                }
+                _runningApps.value = apps
+            }
+
+            json.getAsJsonObject("performance")?.let { perf ->
+                _performance.value = PerformanceMetrics(
+                    cpu = perf.safeInt("cpu", -1),
+                    gpu = perf.safeInt("gpu", -1),
+                    ram = perf.safeInt("ram", -1),
+                    vram = perf.safeInt("vram", -1),
+                    fps = perf.safeInt("fps", -1),
+                    wifi = perf.safeInt("wifi", -1)
+                )
+            }
         }
 
         socketClient.addListener("now_playing") { json ->
@@ -475,6 +545,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _appList.value = apps
         }
 
+        // (Removed running_apps dedicated listener as we tunnel it through state_update now)
+
         socketClient.addListener("file_list") { json ->
             val files = json.getAsJsonArray("files")?.mapNotNull { f ->
                 try {
@@ -485,7 +557,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         size            = obj.safeLong("size"),
                         isDirectory     = obj.safeBool("isDirectory"),
                         type            = obj.safeStr("type", "file"),
-                        thumbnailBase64 = obj.safeStr("thumbnailBase64")
+                        thumbnailBase64 = obj.safeStr("thumbnailBase64"),
+                        lastModified    = obj.safeLong("lastModified")
                     )
                 } catch (_: Exception) { null }
             } ?: emptyList()
@@ -578,6 +651,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _cameraFrameBase64.value = json.safeStr("data")
         }
 
+        socketClient.addListener("camera_audio") { json ->
+            try {
+                val b64 = json.safeStr("data") ?: return@addListener
+                val bytes = Base64.decode(b64, Base64.DEFAULT)
+                audioTrack?.write(bytes, 0, bytes.size)
+            } catch (e: Exception) { }
+        }
+
         socketClient.addListener("file_preview_data") { json ->
             val path = json.safeStr("path", "")
             val data = json.safeStr("data", "")
@@ -596,6 +677,164 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("error") { json ->
             _toastMessage.value = json.safeStr("message", "Unknown error")
+        }
+
+        socketClient.addListener("peer_online") { _ ->
+            // PC just came online — blast ALL our mobile state to it!
+            sendSystemInfoToPC()
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(500)
+                sendSmsList()
+            }
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(1000)
+                sendPhotoList()
+            }
+        }
+
+        socketClient.addListener("lock_phone") {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    val dpm = getApplication<android.app.Application>().getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                    val componentName = android.content.ComponentName(getApplication(), com.phynex.NexLink.service.AdminReceiver::class.java)
+                    if (dpm.isAdminActive(componentName)) {
+                        dpm.lockNow()
+                    } else {
+                        // Bring to front first to bypass Android 10+ background restriction
+                        val bringToFront = android.content.Intent(getApplication(), com.phynex.NexLink.MainActivity::class.java)
+                        bringToFront.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        getApplication<android.app.Application>().startActivity(bringToFront)
+
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            val intent = android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
+                            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "NexLink needs Device Admin to remotely lock the screen.")
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            getApplication<android.app.Application>().startActivity(intent)
+                            android.widget.Toast.makeText(getApplication(), "Please enable Device Admin to allow screen locking.", android.widget.Toast.LENGTH_LONG).show()
+                        }, 500)
+                    }
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(getApplication(), "Failed to lock screen: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        socketClient.addListener("open_camera") { json ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    val bringToFront = android.content.Intent(getApplication(), com.phynex.NexLink.MainActivity::class.java)
+                    bringToFront.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    getApplication<android.app.Application>().startActivity(bringToFront)
+
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        try {
+                            val lens = json.safeStr("lens", "back")
+                            val intent = android.content.Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+                            if (lens == "front") {
+                                intent.putExtra("android.intent.extras.CAMERA_FACING", 1)
+                                intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)
+                                intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+                            } else {
+                                intent.putExtra("android.intent.extras.CAMERA_FACING", 0)
+                            }
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            getApplication<android.app.Application>().startActivity(intent)
+                        } catch (e: Exception) {
+                            android.widget.Toast.makeText(getApplication(), "No camera app found", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }, 500)
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(getApplication(), "Failed to open camera: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        // ── Windows → Android: request SMS list ──────────────────────────
+        socketClient.addListener("request_mobile_sms") { _ ->
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { sendSmsList() }
+        }
+
+        // ── Windows → Android: request photo list ─────────────────────────
+        socketClient.addListener("request_photos") { _ ->
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { sendPhotoList() }
+        }
+
+        // ── Windows → Android: request a single photo thumbnail ───────────
+        socketClient.addListener("request_photo_thumbnail") { json ->
+            val path = json.safeStr("path", "") ?: return@addListener
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                sendPhotoThumbnail(path)
+            }
+        }
+
+        // ── Windows → Android: set ringer mode ────────────────────────────
+        socketClient.addListener("ringer_mode") { json ->
+            val mode = json.safeInt("mode", 2) // 0=Silent,1=Vibrate,2=Normal
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    val am = getApplication<Application>().getSystemService(
+                        android.content.Context.AUDIO_SERVICE) as AudioManager
+                    am.ringerMode = mode
+                    // Update local state and echo back to Windows
+                    _mobileStatus.value = _mobileStatus.value.copy(ringerMode = mode)
+                    sendMobileStatus()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set ringer mode: ${e.message}")
+                }
+            }
+        }
+
+        // ── Windows → Android: set phone media volume ─────────────────────
+        socketClient.addListener("mobile_volume") { json ->
+            val level = json.safeInt("level", 50)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    val am = getApplication<Application>().getSystemService(
+                        android.content.Context.AUDIO_SERVICE) as AudioManager
+                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                    val targetVol = (level * maxVol / 100.0).toInt().coerceIn(0, maxVol)
+                    am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol,
+                        AudioManager.FLAG_SHOW_UI)
+                    _mobileStatus.value = _mobileStatus.value.copy(phoneVolume = level)
+                    sendMobileStatus()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set mobile volume: ${e.message}")
+                }
+            }
+        }
+
+        // ── Windows → Android: request current mobile status snapshot ─────
+        socketClient.addListener("request_info") { _ ->
+            sendMobileStatus()
+        }
+
+        // ── Windows → Android: send SMS via SmsManager ───────────────────
+        socketClient.addListener("sms_send") { json ->
+            val threadId = json.safeStr("threadId", "")
+            val body     = json.safeStr("body", "")
+            if (threadId.isNotBlank() && body.isNotBlank()) {
+                viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    handleSendSms(threadId, body)
+                }
+            }
+        }
+
+        // ── Windows → Android: get full messages for a thread ────────────
+        socketClient.addListener("get_thread") { json ->
+            val threadId = json.safeStr("threadId", "") ?: return@addListener
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    val cr = getApplication<Application>().contentResolver
+                    val messages = getMessagesForThread(cr, threadId, 100)
+                    socketClient.sendMessage(mapOf(
+                        "type"     to "thread_messages",
+                        "threadId" to threadId,
+                        "messages" to messages
+                    ))
+                } catch (e: Exception) {
+                    Log.e(TAG, "get_thread failed: ${e.message}")
+                }
+            }
         }
     }
 
@@ -635,6 +874,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun requestInitialData() {
         socketClient.sendMessage(mapOf("type" to "request_info"))
         socketClient.sendMessage(mapOf("type" to "get_wallpaper"))
+        sendSystemInfoToPC()
     }
 
     fun requestSystemInfo() = socketClient.sendMessage(mapOf("type" to "request_info"))
@@ -666,6 +906,343 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun requestAppList() = socketClient.sendMessage(mapOf("type" to "app_list"))
 
+    fun requestRunningApps() = socketClient.sendMessage(mapOf("type" to "request_info"))
+
+    fun closeApp(appName: String, handle: String) = socketClient.sendMessage(mapOf("type" to "launch_app", "appName" to appName, "appPath" to "##CLOSE##", "appHandle" to handle))
+
+    fun focusApp(appName: String, handle: String) = socketClient.sendMessage(mapOf("type" to "launch_app", "appName" to appName, "appPath" to "##FOCUS##", "appHandle" to handle))
+
+    fun sendSystemInfoToPC() {
+        if (!isConnected.value) return
+        val context = getApplication<Application>()
+        
+        Log.d(TAG, "sendSystemInfoToPC started")
+        // Battery
+        try {
+            val bm = context.getSystemService(android.content.Context.BATTERY_SERVICE) as android.os.BatteryManager
+            val level = bm.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            val charging = bm.isCharging
+            socketClient.sendMessage(mapOf("type" to "battery_info", "level" to level, "isCharging" to charging))
+            Log.d(TAG, "Sent battery_info: $level% charging=$charging")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed battery", e)
+        }
+        
+        // WiFi
+        try {
+            val cm = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+            val activeNetwork = cm.activeNetwork
+            val caps = cm.getNetworkCapabilities(activeNetwork)
+            val wifiOn = caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+            var ssid = ""
+            if (wifiOn) {
+                val wm = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+                ssid = wm.connectionInfo?.ssid?.replace("\"", "") ?: "Connected"
+            }
+            socketClient.sendMessage(mapOf("type" to "wifi_info", "enabled" to wifiOn, "ssid" to ssid, "connected" to wifiOn))
+            Log.d(TAG, "Sent wifi_info: $ssid")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed wifi", e)
+        }
+
+        // Mobile status (ringer + volume)
+        sendMobileStatus()
+
+        // Wallpaper
+        try {
+            val wm = android.app.WallpaperManager.getInstance(context)
+            val drawable = wm.drawable
+            if (drawable != null) {
+                Log.d(TAG, "Wallpaper drawable acquired, converting to bitmap...")
+                val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 800
+                val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 450
+                val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(bitmap)
+                drawable.setBounds(0, 0, canvas.width, canvas.height)
+                drawable.draw(canvas)
+                
+                val baos = java.io.ByteArrayOutputStream()
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 20, baos)
+                val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+                socketClient.sendMessage(mapOf("type" to "mobile_wallpaper", "data" to b64))
+                Log.d(TAG, "Sent mobile_wallpaper")
+            } else {
+                Log.d(TAG, "Wallpaper drawable is null!")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get mobile wallpaper", e)
+        }
+    }
+
+    /** Push current ringer mode + phone volumes to Windows */
+    fun sendMobileStatus() {
+        if (!isConnected.value) return
+        try {
+            val context = getApplication<Application>()
+            val am = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+            val ringerMode = am.ringerMode // 0=Silent, 1=Vibrate, 2=Normal
+
+            val maxMedia  = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val curMedia  = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val mediaVolPct = if (maxMedia > 0) (curMedia * 100 / maxMedia) else 0
+
+            val maxRinger  = am.getStreamMaxVolume(AudioManager.STREAM_RING)
+            val curRinger  = am.getStreamVolume(AudioManager.STREAM_RING)
+            val ringerVolPct = if (maxRinger > 0) (curRinger * 100 / maxRinger) else 0
+
+            val notifCount = LinkBridgeNotificationService.activeCount
+
+            val status = MobileStatus(
+                ringerMode   = ringerMode,
+                phoneVolume  = mediaVolPct,
+                ringerVolume = ringerVolPct,
+                notifCount   = notifCount
+            )
+            _mobileStatus.value = status
+
+            socketClient.sendMessage(mapOf(
+                "type"        to "mobile_status",
+                "ringerMode"  to ringerMode,
+                "phoneVolume" to mediaVolPct,
+                "ringerVolume" to ringerVolPct,
+                "notifCount"  to notifCount
+            ))
+            Log.d(TAG, "Sent mobile_status: ringer=$ringerMode vol=$mediaVolPct%")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed sendMobileStatus: ${e.message}")
+        }
+    }
+
+    /**
+     * Reads all SMS threads from ContentResolver and sends them to Windows.
+     * For each thread, includes the last ~20 messages for conversation view.
+     * Looks up contact names from ContactsContract.
+     */
+    fun sendSmsList() {
+        if (!isConnected.value) return
+        try {
+            val context = getApplication<Application>()
+            val cr = context.contentResolver
+            val threads = mutableListOf<Map<String, Any>>()
+
+            // Query recent SMS messages directly to find distinct threads (safest cross-OEM method)
+            val threadCursor = cr.query(
+                Uri.parse("content://sms"),
+                arrayOf("thread_id", "address", "body", "date"),
+                null, null, "date DESC LIMIT 500"
+            )
+            val seenThreadIds = mutableSetOf<String>()
+            threadCursor?.use { tc ->
+                val threadIdCol = tc.getColumnIndex("thread_id")
+                val addrCol     = tc.getColumnIndex("address")
+                val bodyCol     = tc.getColumnIndex("body")
+                val dateCol     = tc.getColumnIndex("date")
+
+                while (tc.moveToNext()) {
+                    val threadId = if (threadIdCol >= 0) tc.getString(threadIdCol) ?: "" else ""
+                    if (threadId.isBlank() || seenThreadIds.contains(threadId)) continue
+                    seenThreadIds.add(threadId)
+
+                    val number   = if (addrCol >= 0) tc.getString(addrCol) ?: "" else ""
+                    val snippet  = if (bodyCol >= 0) tc.getString(bodyCol) ?: "" else ""
+                    val date     = if (dateCol >= 0) tc.getLong(dateCol) else 0L
+
+                    val contactName = lookupContactName(cr, number) ?: number
+
+                    // Get last 20 messages for this thread
+                    val messages = getMessagesForThread(cr, threadId, 20)
+
+                    threads.add(mapOf(
+                        "id"            to threadId,
+                        "contactName"   to contactName,
+                        "contactNumber" to number,
+                        "lastMessage"   to snippet,
+                        "timestamp"     to date,
+                        "unread"        to 0,
+                        "messages"      to messages
+                    ))
+                    if (threads.size >= 50) break // limit to 50 threads
+                }
+            }
+
+            socketClient.sendMessage(mapOf(
+                "type"    to "mobile_sms_list",
+                "threads" to threads
+            ))
+            Log.d(TAG, "Sent mobile_sms_list: ${threads.size} threads")
+        } catch (e: Exception) {
+            Log.e(TAG, "sendSmsList failed: ${e.message}")
+        }
+    }
+
+    private fun getNumberForThread(cr: ContentResolver, threadId: String): String {
+        return try {
+            val cur = cr.query(
+                Uri.parse("content://sms"),
+                arrayOf("address"),
+                "thread_id=?",
+                arrayOf(threadId),
+                "date DESC"
+            )
+            cur?.use { if (it.moveToFirst()) it.getString(0) ?: "" else "" } ?: ""
+        } catch (_: Exception) { "" }
+    }
+
+    private fun lookupContactName(cr: ContentResolver, number: String): String? {
+        if (number.isBlank()) return null
+        return try {
+            val uri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            val cur = cr.query(uri,
+                arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)
+            cur?.use { if (it.moveToFirst()) it.getString(0) else null }
+        } catch (_: Exception) { null }
+    }
+
+    private fun getMessagesForThread(cr: ContentResolver, threadId: String, limit: Int): List<Map<String, Any>> {
+        return try {
+            val messages = mutableListOf<Map<String, Any>>()
+            val cur = cr.query(
+                Uri.parse("content://sms"),
+                arrayOf("_id", "body", "date", "type"),
+                "thread_id=?",
+                arrayOf(threadId),
+                "date DESC LIMIT $limit"
+            )
+            cur?.use { c ->
+                val idCol   = c.getColumnIndex("_id")
+                val bodyCol = c.getColumnIndex("body")
+                val dateCol = c.getColumnIndex("date")
+                val typeCol = c.getColumnIndex("type")
+                while (c.moveToNext()) {
+                    messages.add(mapOf(
+                        "id"     to (if (idCol   >= 0) c.getString(idCol)   else ""),
+                        "body"   to (if (bodyCol >= 0) c.getString(bodyCol) else ""),
+                        "timestamp" to (if (dateCol >= 0) c.getLong(dateCol) else 0L),
+                        "isSent" to (if (typeCol >= 0) c.getInt(typeCol) == Telephony.Sms.MESSAGE_TYPE_SENT else false)
+                    ))
+                }
+            }
+            messages.reversed() // oldest first for conversation order
+        } catch (_: Exception) { emptyList() }
+    }
+
+    /**
+     * Queries MediaStore for images grouped by album folder.
+     * Sends metadata only (no thumbnails). Thumbnails are lazy-loaded on demand.
+     * Albums: Camera, WhatsApp Images, Screenshots, Download
+     */
+    fun sendPhotoList() {
+        if (!isConnected.value) return
+        try {
+            val context = getApplication<Application>()
+            val cr = context.contentResolver
+
+            val albumOrder = listOf("Camera", "WhatsApp Images", "Screenshots", "Download")
+            val photosByAlbum = mutableMapOf<String, MutableList<Map<String, Any>>>()
+            albumOrder.forEach { photosByAlbum[it] = mutableListOf() }
+
+            val projection = arrayOf(
+                android.provider.MediaStore.Images.Media._ID,
+                android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+                android.provider.MediaStore.Images.Media.DATE_TAKEN,
+                android.provider.MediaStore.Images.Media.DATA,
+                android.provider.MediaStore.Images.Media.BUCKET_DISPLAY_NAME
+            )
+
+            val cur = cr.query(
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection, null, null,
+                "${android.provider.MediaStore.Images.Media.DATE_TAKEN} DESC"
+            )
+            cur?.use { c ->
+                val idCol     = c.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media._ID)
+                val nameCol   = c.getColumnIndexOrThrow(android.provider.MediaStore.Images.Media.DISPLAY_NAME)
+                val dateCol   = c.getColumnIndex(android.provider.MediaStore.Images.Media.DATE_TAKEN)
+                val pathCol   = c.getColumnIndex(android.provider.MediaStore.Images.Media.DATA)
+                val bucketCol = c.getColumnIndex(android.provider.MediaStore.Images.Media.BUCKET_DISPLAY_NAME)
+
+                while (c.moveToNext()) {
+                    val id     = c.getLong(idCol)
+                    val name   = c.getString(nameCol) ?: ""
+                    val date   = if (dateCol   >= 0) c.getLong(dateCol)   else 0L
+                    val path   = if (pathCol   >= 0) c.getString(pathCol) ?: "" else ""
+                    val bucket = if (bucketCol >= 0) c.getString(bucketCol) ?: "" else ""
+
+                    // Map to one of our 4 standard albums
+                    val album = when {
+                        bucket.contains("Camera", ignoreCase = true)         -> "Camera"
+                        bucket.contains("WhatsApp", ignoreCase = true)       -> "WhatsApp Images"
+                        bucket.contains("Screenshot", ignoreCase = true)     -> "Screenshots"
+                        bucket.contains("Download", ignoreCase = true)       -> "Download"
+                        else                                                  -> "Camera" // fallback
+                    }
+
+                    val contentUri = ContentUris.withAppendedId(
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+
+                    photosByAlbum[album]?.add(mapOf(
+                        "id"        to id.toString(),
+                        "name"      to name,
+                        "path"      to contentUri.toString(), // content URI (no real fs path needed)
+                        "timestamp" to date,
+                        "album"     to album
+                        // No thumbnail here — lazy loaded on demand
+                    ))
+                    // Cap each album at 200 items to avoid huge payloads
+                    if ((photosByAlbum[album]?.size ?: 0) >= 200) {
+                        // still scan remaining photos for other albums
+                    }
+                }
+            }
+
+            // Build album summary with photo count
+            val albums = albumOrder.map { albumName ->
+                val photos = photosByAlbum[albumName] ?: emptyList()
+                mapOf(
+                    "name"       to albumName,
+                    "photoCount" to photos.size,
+                    "photos"     to photos
+                )
+            }.filter { (it["photoCount"] as Int) > 0 }
+
+            socketClient.sendMessage(mapOf(
+                "type"   to "mobile_photo_list",
+                "albums" to albums
+            ))
+            Log.d(TAG, "Sent mobile_photo_list: ${albums.size} albums")
+        } catch (e: Exception) {
+            Log.e(TAG, "sendPhotoList failed: ${e.message}")
+        }
+    }
+
+    /** Lazy-loads a single photo thumbnail and sends it to Windows on demand */
+    private fun sendPhotoThumbnail(contentUriStr: String) {
+        if (!isConnected.value) return
+        try {
+            val context = getApplication<Application>()
+            val uri = Uri.parse(contentUriStr)
+            val bitmap = android.provider.MediaStore.Images.Thumbnails.getThumbnail(
+                context.contentResolver,
+                ContentUris.parseId(uri),
+                android.provider.MediaStore.Images.Thumbnails.MINI_KIND,
+                null
+            ) ?: return
+
+            val baos = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 60, baos)
+            val b64 = android.util.Base64.encodeToString(baos.toByteArray(), android.util.Base64.NO_WRAP)
+
+            socketClient.sendMessage(mapOf(
+                "type"      to "mobile_photo_thumbnail",
+                "path"      to contentUriStr,
+                "thumbnail" to b64
+            ))
+        } catch (e: Exception) {
+            Log.e(TAG, "sendPhotoThumbnail failed for $contentUriStr: ${e.message}")
+        }
+    }
+
     fun browsePath(path: String) {
         _currentPath.value = path
         socketClient.sendMessage(mapOf("type" to "browse", "path" to path))
@@ -681,6 +1258,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearFilePreview() { _filePreviewData.value = null }
 
     fun downloadFile(path: String) = socketClient.sendMessage(mapOf("type" to "download_file", "path" to path))
+
+    fun renameFile(path: String, newName: String) {
+        socketClient.sendMessage(mapOf("type" to "rename_file", "path" to path, "newName" to newName))
+        browsePath(_currentPath.value) // auto refresh
+    }
+
+    fun createFolder(path: String, name: String) {
+        socketClient.sendMessage(mapOf("type" to "create_folder", "path" to path, "name" to name))
+        browsePath(_currentPath.value)
+    }
+
+    fun createFile(path: String, name: String) {
+        socketClient.sendMessage(mapOf("type" to "create_file", "path" to path, "name" to name))
+        browsePath(_currentPath.value)
+    }
+
+    fun deleteFile(path: String) {
+        socketClient.sendMessage(mapOf("type" to "delete_file", "path" to path))
+        browsePath(_currentPath.value)
+    }
+
+    fun copyFile(source: String, destDir: String) {
+        socketClient.sendMessage(mapOf("type" to "copy_file", "source" to source, "destDir" to destDir))
+        browsePath(_currentPath.value)
+    }
+
+    fun moveFile(source: String, destDir: String) {
+        socketClient.sendMessage(mapOf("type" to "move_file", "source" to source, "destDir" to destDir))
+        browsePath(_currentPath.value)
+    }
 
     fun pushClipboard(content: String) {
         _clipboardItems.value = (_clipboardItems.value + ClipboardItem(content = content, source = "phone")).takeLast(50)
@@ -699,14 +1306,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.sendMessage(mapOf("type" to "stop_screen"))
     }
 
-    fun startCameraStream() {
+    fun startCameraStream(enableMic: Boolean) {
+        if (!isConnected.value) return
         _isStreamingCamera.value = true
-        socketClient.sendMessage(mapOf("type" to "start_camera"))
+        _cameraFrameBase64.value = null
+        
+        if (enableMic) {
+            try {
+                val bufferSize = AudioTrack.getMinBufferSize(16000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+                audioTrack = AudioTrack.Builder()
+                    .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                    .setAudioFormat(AudioFormat.Builder().setSampleRate(16000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setBufferSizeInBytes(bufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+                audioTrack?.play()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to init AudioTrack", e)
+            }
+        }
+
+        socketClient.sendMessage(mapOf("type" to "start_camera", "enableMic" to enableMic))
     }
 
     fun stopCameraStream() {
+        if (!isConnected.value) return
         _isStreamingCamera.value = false
         socketClient.sendMessage(mapOf("type" to "stop_camera"))
+        
+        try {
+            audioTrack?.stop()
+            audioTrack?.release()
+            audioTrack = null
+        } catch (e: Exception) { }
     }
 
     fun pinApp(app: AppItem) {
@@ -717,8 +1349,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearToast() { _toastMessage.value = null }
 
-    fun sendSms(threadId: String, body: String) =
+    fun sendSms(threadId: String, body: String) {
+        // Forward to Android side via socket (the phone sends the SMS using SmsManager)
         socketClient.sendMessage(mapOf("type" to "sms_send", "threadId" to threadId, "body" to body))
+    }
+
+    /**
+     * Called when Android receives `sms_send` from Windows.
+     * Sends the SMS using SmsManager and then refreshes the thread.
+     */
+    private fun handleSendSms(threadId: String, body: String) {
+        try {
+            val context = getApplication<Application>()
+            val cr = context.contentResolver
+            val number = getNumberForThread(cr, threadId)
+            if (number.isBlank()) {
+                Log.e(TAG, "handleSendSms: no number for thread $threadId")
+                return
+            }
+            @Suppress("DEPRECATION")
+            val smsManager: SmsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                context.getSystemService(SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsManager.getDefault()
+            }
+            val parts = smsManager.divideMessage(body)
+            smsManager.sendMultipartTextMessage(number, null, parts, null, null)
+            Log.d(TAG, "SMS sent to $number: $body")
+            // Refresh thread list after short delay
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(1000)
+                sendSmsList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "handleSendSms failed: ${e.message}")
+            _toastMessage.value = "Failed to send SMS: ${e.message}"
+        }
+    }
 
     // ─── USB / touchpad events ─────────────────────────────────────────────
 
@@ -742,6 +1410,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMouseRightTap() {
         socketClient.sendMessage(mapOf("type" to "mouse_right_tap"))
+    }
+
+    fun sendMouseMiddleTap() {
+        socketClient.sendMessage(mapOf("type" to "mouse_middle_tap"))
     }
 
     fun sendMouseScroll(dy: Float) {

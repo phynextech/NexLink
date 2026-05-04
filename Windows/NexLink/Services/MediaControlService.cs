@@ -21,14 +21,36 @@ namespace NexLink.Services
 
         public static void SendMediaKey(string action)
         {
+            if (action == "play_pause")
+            {
+                // Try SMTC first, it is much more reliable
+                Task.Run(async () => {
+                    try {
+                        var smgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                        var session = smgr.GetCurrentSession();
+                        if (session != null) {
+                            await session.TryTogglePlayPauseAsync();
+                            return;
+                        }
+                    } catch { }
+                    // Fallback to key
+                    SendKeycode(VK_MEDIA_PLAY_PAUSE);
+                });
+                return;
+            }
+
             byte key = action switch
             {
-                "play_pause" => VK_MEDIA_PLAY_PAUSE,
-                "next"       => VK_MEDIA_NEXT_TRACK,
-                "prev"       => VK_MEDIA_PREV_TRACK,
-                "stop"       => VK_MEDIA_STOP,
-                _            => VK_MEDIA_PLAY_PAUSE
+                "next" => VK_MEDIA_NEXT_TRACK,
+                "prev" => VK_MEDIA_PREV_TRACK,
+                "stop" => VK_MEDIA_STOP,
+                _ => VK_MEDIA_PLAY_PAUSE
             };
+            SendKeycode(key);
+        }
+
+        private static void SendKeycode(byte key)
+        {
             keybd_event(key, 0, KEYEVENTF_EXTENDEDKEY, 0);
             Thread.Sleep(50);
             keybd_event(key, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);

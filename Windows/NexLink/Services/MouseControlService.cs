@@ -25,6 +25,8 @@ namespace NexLink.Services
         private const uint MOUSEEVENTF_LEFTUP      = 0x0004;
         private const uint MOUSEEVENTF_RIGHTDOWN   = 0x0008;
         private const uint MOUSEEVENTF_RIGHTUP     = 0x0010;
+        private const uint MOUSEEVENTF_MIDDLEDOWN  = 0x0020;
+        private const uint MOUSEEVENTF_MIDDLEUP    = 0x0040;
         private const uint MOUSEEVENTF_WHEEL       = 0x0800;
         private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
 
@@ -98,6 +100,17 @@ namespace NexLink.Services
             {
                 new INPUT { type = INPUT_MOUSE, mi = new MOUSEINPUT { dwFlags = MOUSEEVENTF_RIGHTDOWN } },
                 new INPUT { type = INPUT_MOUSE, mi = new MOUSEINPUT { dwFlags = MOUSEEVENTF_RIGHTUP   } },
+            };
+            SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+        }
+
+        /// <summary>Simulate a middle mouse button click (down + up).</summary>
+        public static void MiddleClick()
+        {
+            var inputs = new[]
+            {
+                new INPUT { type = INPUT_MOUSE, mi = new MOUSEINPUT { dwFlags = MOUSEEVENTF_MIDDLEDOWN } },
+                new INPUT { type = INPUT_MOUSE, mi = new MOUSEINPUT { dwFlags = MOUSEEVENTF_MIDDLEUP   } },
             };
             SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
         }

@@ -63,6 +63,9 @@ namespace NexLink.Models
         public string Name { get; set; } = "";
         public string Path { get; set; } = "";
         public string? IconBase64 { get; set; }
+        public string Category { get; set; } = "";
+        public string Handle { get; set; } = "";
+        public bool IsForeground { get; set; }
     }
 
     public class AppListMessage
@@ -79,6 +82,7 @@ namespace NexLink.Models
         public bool IsDirectory { get; set; }
         public string Type { get; set; } = "file";
         public string? ThumbnailBase64 { get; set; } // For image files
+        public long LastModified { get; set; }
     }
 
     public class FileListMessage
@@ -120,6 +124,27 @@ namespace NexLink.Models
         public string Path { get; set; } = "";
         public string? ThumbnailBase64 { get; set; }
         public DateTime Timestamp { get; set; }
+        public string Album { get; set; } = "Camera";   // "Camera", "WhatsApp Images", "Screenshots", "Download"
+    }
+
+    /// <summary>Album of photos from the Android device, grouped by folder.</summary>
+    public class PhotoAlbum
+    {
+        public string Name { get; set; } = "";           // e.g. "Camera"
+        public string? CoverThumbnail { get; set; }     // base64 first photo (optional)
+        public int PhotoCount { get; set; }
+        public List<PhotoItem> Photos { get; set; } = new();
+    }
+
+    /// <summary>Live Android device status: ringer mode, volume, notification count.</summary>
+    public class MobileStatus
+    {
+        /// <summary>0=Silent, 1=Vibrate, 2=Normal</summary>
+        public int RingerMode { get; set; } = 2;
+        public int PhoneVolume { get; set; }    // 0-100 media stream %
+        public int RingerVolume { get; set; }   // 0-100 ringer stream %
+        public int NotifCount { get; set; }
+        public bool IsDoNotDisturb { get; set; }
     }
 
     public enum ConnectionState

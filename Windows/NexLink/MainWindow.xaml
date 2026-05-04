@@ -7,9 +7,10 @@
         mc:Ignorable="d"
         Title="NexLink" Height="760" Width="1200"
         MinHeight="600" MinWidth="900"
-        Background="#0A0E1A"
+        Background="#000000"
         WindowStyle="None"
         AllowsTransparency="True"
+        Icon="Assets/app.png"
         ResizeMode="CanResizeWithGrip">
 
     <Window.Resources>
@@ -17,7 +18,7 @@
         <Style x:Key="GlassCard" TargetType="Border">
             <Setter Property="Background">
                 <Setter.Value>
-                    <SolidColorBrush Color="#121929" Opacity="0.6"/>
+                    <SolidColorBrush Color="#121212" Opacity="0.6"/>
                 </Setter.Value>
             </Setter>
             <Setter Property="CornerRadius" Value="16"/>
@@ -38,14 +39,14 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Background="#3300E5FF" CornerRadius="4" Width="28" Height="28">
+                    <Border Grid.Column="0" Background="#33FFFFFF" CornerRadius="4" Width="28" Height="28">
                         <TextBlock Text="🔔" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14"/>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" Foreground="#dfe2f3" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Body}" Foreground="#bac9cc" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="13" Foreground="#DFDFDF" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Body}" Foreground="#BBBBBB" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
                     </StackPanel>
-                    <TextBlock Grid.Column="2" Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" Foreground="#849396" FontSize="10" VerticalAlignment="Top"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" Foreground="#848484" FontSize="10" VerticalAlignment="Top"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -59,17 +60,17 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="#3300E5FF">
-                        <TextBlock Text="{Binding ContactName[0]}" Foreground="#00E5FF" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                    <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" Background="#33FFFFFF">
+                        <TextBlock Text="{Binding ContactName[0]}" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
                     </Border>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold" FontSize="13" Foreground="#dfe2f3"/>
-                        <TextBlock Text="{Binding LastMessage}" Foreground="#bac9cc" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding ContactName}" FontWeight="SemiBold" FontSize="13" Foreground="#DFDFDF"/>
+                        <TextBlock Text="{Binding LastMessage}" Foreground="#BBBBBB" FontSize="12" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                     <StackPanel Grid.Column="2" HorizontalAlignment="Right">
-                        <TextBlock Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" Foreground="#849396" FontSize="11"/>
-                        <Border Background="#00E5FF" CornerRadius="10" Padding="6,2" HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="#0A0E1A" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding Timestamp, StringFormat={}{0:HH:mm}}" Foreground="#848484" FontSize="11"/>
+                        <Border Background="#FFFFFF" CornerRadius="10" Padding="6,2" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding Unread}" FontSize="11" Foreground="#0A0A0A" FontWeight="Bold"/>
                         </Border>
                     </StackPanel>
                 </Grid>
@@ -78,7 +79,7 @@
         
         <Style x:Key="NavListItem" TargetType="ListBoxItem">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#bac9cc"/>
+            <Setter Property="Foreground" Value="#BBBBBB"/>
             <Setter Property="Padding" Value="16,12"/>
             <Setter Property="Margin" Value="0,2"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -91,13 +92,13 @@
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="BgBorder" Property="Background" Value="#1AFFFFFF"/>
-                                <Setter Property="Foreground" Value="#dfe2f3"/>
+                                <Setter Property="Foreground" Value="#DFDFDF"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="BgBorder" Property="Background" Value="#1A00E5FF"/>
-                                <Setter TargetName="BgBorder" Property="BorderBrush" Value="#00E5FF"/>
+                                <Setter TargetName="BgBorder" Property="Background" Value="#1AFFFFFF"/>
+                                <Setter TargetName="BgBorder" Property="BorderBrush" Value="#FFFFFF"/>
                                 <Setter TargetName="BgBorder" Property="BorderThickness" Value="3,0,0,0"/>
-                                <Setter Property="Foreground" Value="#00E5FF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -120,7 +121,7 @@
             </DrawingBrush>
         </Grid.Background>
 
-        <Border x:Name="ConnectedDashboard" Visibility="Collapsed" Background="#0A0E1A" BorderBrush="#252F4A" BorderThickness="1">
+        <Border x:Name="ConnectedDashboard" Visibility="Collapsed" Background="#000000" BorderBrush="#252525" BorderThickness="1">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240"/>
@@ -128,7 +129,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Sidebar -->
-            <Border Grid.Column="0" Background="#0D1220" BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,0" Padding="16,24">
+            <Border Grid.Column="0" Background="#111111" BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,0" Padding="16,24">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -138,12 +139,12 @@
                     
                     <!-- Logo -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,0,0,32">
-                        <Border Background="#1A00E5FF" CornerRadius="8" Width="32" Height="32" Margin="0,0,12,0">
-                            <TextBlock Text="⚡" Foreground="#00E5FF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border Background="#1AFFFFFF" CornerRadius="8" Width="32" Height="32" Margin="0,0,12,0">
+                            <TextBlock Text="⚡" Foreground="#FFFFFF" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="NEXLINK" FontFamily="Rajdhani, Segoe UI" FontSize="16" FontWeight="Bold" Foreground="#00E5FF"/>
-                            <TextBlock Text="SYSTEM SYNCED" FontFamily="JetBrains Mono, Consolas" FontSize="10" Foreground="#00E5FF" Opacity="0.8"/>
+                            <TextBlock Text="NEXLINK" FontFamily="Rajdhani, Segoe UI" FontSize="16" FontWeight="Bold" Foreground="#FFFFFF"/>
+                            <TextBlock Text="SYSTEM SYNCED" FontFamily="JetBrains Mono, Consolas" FontSize="10" Foreground="#FFFFFF" Opacity="0.8"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -187,37 +188,37 @@
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                 <Ellipse Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center">
                                     <Ellipse.Fill>
-                                        <SolidColorBrush x:Name="StatusDotBrush" Color="#849396"/>
+                                        <SolidColorBrush x:Name="StatusDotBrush" Color="#848484"/>
                                     </Ellipse.Fill>
                                 </Ellipse>
-                                <TextBlock x:Name="StatusLabel" Text="Disconnected" Foreground="#849396" FontSize="12" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="StatusLabel" Text="Disconnected" Foreground="#848484" FontSize="12" VerticalAlignment="Center"/>
                             </StackPanel>
-                            <TextBlock x:Name="StatusBar" Text="Ready" Foreground="#849396" FontSize="12"/>
-                            <TextBlock x:Name="PortLabel" Foreground="#849396" FontSize="12" Margin="0,4,0,0"/>
+                            <TextBlock x:Name="StatusBar" Text="Ready" Foreground="#848484" FontSize="12"/>
+                            <TextBlock x:Name="PortLabel" Foreground="#848484" FontSize="12" Margin="0,4,0,0"/>
                         </StackPanel>
                     </Border>
                 </Grid>
             </Border>
 
             <!-- Main Content -->
-            <Grid Grid.Column="1" Background="#0A0E1A">
+            <Grid Grid.Column="1" Background="#000000">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="48"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
                 <!-- Title Bar -->
-                <Border Grid.Row="0" Background="#0D1220" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Padding="24,0">
+                <Border Grid.Row="0" Background="#111111" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Padding="24,0">
                     <Grid MouseLeftButtonDown="TitleBar_MouseDown" Background="Transparent">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Dashboard" FontFamily="Rajdhani, Segoe UI" FontSize="20" FontWeight="SemiBold" Foreground="#dfe2f3" Margin="0,0,16,0"/>
+                            <TextBlock Text="Dashboard" FontFamily="Rajdhani, Segoe UI" FontSize="20" FontWeight="SemiBold" Foreground="#DFDFDF" Margin="0,0,16,0"/>
                             <Border Background="#0DFFFFFF" CornerRadius="4" Padding="8,4">
-                                <TextBlock Text="Last synced: just now" FontFamily="JetBrains Mono" FontSize="10" Foreground="#bac9cc"/>
+                                <TextBlock Text="Last synced: just now" FontFamily="JetBrains Mono" FontSize="10" Foreground="#BBBBBB"/>
                             </Border>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <Button Content="─" Style="{StaticResource IconButton}" Click="Minimize_Click" Foreground="#849396" FontSize="14" Width="32" Height="32"/>
-                            <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Foreground="#849396" FontSize="13" Width="32" Height="32"/>
+                            <Button Content="─" Style="{StaticResource IconButton}" Click="Minimize_Click" Foreground="#848484" FontSize="14" Width="32" Height="32"/>
+                            <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Foreground="#848484" FontSize="13" Width="32" Height="32"/>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -246,13 +247,14 @@
                                     
                                     <Border x:Name="PhoneInfoPanel" Style="{StaticResource GlassCard}" Padding="24" Visibility="Collapsed" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <TextBlock Text="MOBILE PREVIEW" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,16"/>
-                                            <Border Background="#1A2238" CornerRadius="24" BorderBrush="#313442" BorderThickness="4" Width="160" Height="320" HorizontalAlignment="Center">
+                                            <TextBlock Text="MOBILE PREVIEW" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,16"/>
+                                            <Border Background="#1A1A1A" CornerRadius="24" BorderBrush="#313131" BorderThickness="4" Width="160" Height="320" HorizontalAlignment="Center">
                                                 <Grid>
+                                                    <Image x:Name="MobileWallpaperImage" Stretch="UniformToFill" Opacity="0.5" />
                                                     <TextBlock Text="📱" FontSize="48" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5"/>
                                                     <StackPanel VerticalAlignment="Top" Margin="0,24,0,0">
-                                                        <TextBlock x:Name="PhoneNameLabel" Text="Samsung Galaxy S24" FontFamily="Rajdhani" FontSize="16" FontWeight="SemiBold" Foreground="#dfe2f3" HorizontalAlignment="Center"/>
-                                                        <TextBlock Text="System Synced" FontFamily="JetBrains Mono" FontSize="10" Foreground="#00E5FF" HorizontalAlignment="Center"/>
+                                                        <TextBlock x:Name="PhoneNameLabel" Text="Samsung Galaxy S24" FontFamily="Rajdhani" FontSize="16" FontWeight="SemiBold" Foreground="#DFDFDF" HorizontalAlignment="Center"/>
+                                                        <TextBlock Text="System Synced" FontFamily="JetBrains Mono" FontSize="10" Foreground="#FFFFFF" HorizontalAlignment="Center"/>
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>
@@ -264,13 +266,14 @@
                                             <Button x:Name="LockBtn" Background="#0DFFFFFF" BorderThickness="0" Margin="4" Padding="16" Click="LockBtn_Click">
                                                 <StackPanel>
                                                     <TextBlock Text="🔒" FontSize="24" HorizontalAlignment="Center"/>
-                                                    <TextBlock Text="Lock" FontFamily="Rajdhani" FontSize="12" Foreground="#dfe2f3" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                                    <TextBlock Text="Lock" FontFamily="Rajdhani" FontSize="12" Foreground="#DFDFDF" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Background="#0DFFFFFF" BorderThickness="0" Margin="4" Padding="16">
+                                            <Button x:Name="CameraBtn" Background="#0DFFFFFF" BorderThickness="0" Margin="4" Padding="8" Click="CameraBtn_Click">
                                                 <StackPanel>
                                                     <TextBlock Text="📷" FontSize="24" HorizontalAlignment="Center"/>
-                                                    <TextBlock Text="Camera" FontFamily="Rajdhani" FontSize="12" Foreground="#dfe2f3" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                                    <TextBlock Text="Camera" FontFamily="Rajdhani" FontSize="12" Foreground="#DFDFDF" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                                    <CheckBox x:Name="UseFrontCamera" Content="Front" Foreground="Gray" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                                                 </StackPanel>
                                             </Button>
                                         </UniformGrid>
@@ -281,54 +284,114 @@
                                 <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                     <Border Style="{StaticResource GlassCard}" Padding="24" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <TextBlock Text="MOBILE STATUS" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,16"/>
-                                            <Grid Margin="0,8">
+                                            <TextBlock Text="MOBILE STATUS" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,16"/>
+                                            <!-- Wi-Fi -->
+                                            <Grid Margin="0,6">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Wi-Fi Connection" Foreground="#dfe2f3"/>
-                                                <TextBlock x:Name="WifiLabel" Grid.Column="1" Text="—" Foreground="#00E5FF" FontFamily="JetBrains Mono" FontSize="12"/>
+                                                <TextBlock Text="📶 Wi-Fi" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="WifiLabel" Grid.Column="1" Text="—" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
                                             </Grid>
-                                            <Grid Margin="0,8">
+                                            <!-- Battery -->
+                                            <Grid Margin="0,6">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="Battery Level" Foreground="#dfe2f3"/>
-                                                <TextBlock x:Name="BatteryLabel" Grid.Column="1" Text="—%" Foreground="#dfe2f3" FontFamily="JetBrains Mono" FontSize="12"/>
+                                                <TextBlock Text="🔋 Battery" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="BatteryLabel" Grid.Column="1" Text="—%" Foreground="#DFDFDF" FontFamily="JetBrains Mono" FontSize="12"/>
                                             </Grid>
+                                            <!-- Ringer Mode -->
+                                            <Grid Margin="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Ringer" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="MobileRingerLabel" Grid.Column="1" Text="🔔 Ring" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
+                                            </Grid>
+                                            <!-- Phone Volume (media) -->
+                                            <Grid Margin="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="🔊 Media Vol" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="MobileVolumeLabel" Grid.Column="1" Text="—%" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
+                                            </Grid>
+                                            <!-- Ringer Volume -->
+                                            <Grid Margin="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="🔔 Ringer Vol" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="MobileRingerVolLabel" Grid.Column="1" Text="—%" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
+                                            </Grid>
+                                            <!-- Active Notifications -->
+                                            <Grid Margin="0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="🔔 Notifications" Foreground="#DFDFDF"/>
+                                                <TextBlock x:Name="MobileNotifCountLabel" Grid.Column="1" Text="0" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
+                                            </Grid>
+
+                                            <!-- Ringer Control Buttons -->
+                                            <TextBlock Text="SET RINGER" FontFamily="Rajdhani" FontSize="11" FontWeight="Bold" Foreground="#848484" Margin="0,16,0,8"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                                <Button x:Name="RingerSilentBtn" Content="🔇 Silent" Background="#0DFFFFFF" BorderThickness="0" Margin="0,0,4,0" Padding="10,6" Opacity="0.4" Click="RingerSilent_Click" Cursor="Hand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="RingerVibrateBtn" Content="📳 Vibrate" Background="#0DFFFFFF" BorderThickness="0" Margin="0,0,4,0" Padding="10,6" Opacity="0.4" Click="RingerVibrate_Click" Cursor="Hand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="RingerRingBtn" Content="🔔 Ring" Background="#0DFFFFFF" BorderThickness="0" Padding="10,6" Opacity="1.0" Click="RingerRing_Click" Cursor="Hand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
 
                                     <Border Style="{StaticResource GlassCard}" Padding="24" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <TextBlock Text="REMOTE OVERRIDES" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,16"/>
+                                            <TextBlock Text="REMOTE OVERRIDES" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,16"/>
                                             <Button x:Name="MuteBtn" Content="Mute Audio" Style="{StaticResource PrimaryButton}" Click="MuteBtn_Click" Margin="0,0,0,12"/>
                                             <Border Background="#0DFFFFFF" CornerRadius="8" Padding="16">
                                                 <StackPanel>
-                                                    <TextBlock x:Name="NowPlayingTitle" Text="Not Playing" Foreground="#dfe2f3" FontWeight="SemiBold" FontSize="14"/>
-                                                    <TextBlock x:Name="NowPlayingArtist" Foreground="#bac9cc" FontSize="12" Margin="0,2,0,12"/>
+                                                    <TextBlock x:Name="NowPlayingTitle" Text="Not Playing" Foreground="#DFDFDF" FontWeight="SemiBold" FontSize="14"/>
+                                                    <TextBlock x:Name="NowPlayingArtist" Foreground="#BBBBBB" FontSize="12" Margin="0,2,0,12"/>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                        <Button Content="⏮" Style="{StaticResource IconButton}" Click="Prev_Click" FontSize="18" Foreground="#bac9cc" Width="40" Height="40"/>
-                                                        <Button x:Name="PlayPauseBtn" Content="⏯" Style="{StaticResource IconButton}" Click="PlayPause_Click" FontSize="24" Foreground="#00E5FF" Width="48" Height="48" Margin="8,0"/>
-                                                        <Button Content="⏭" Style="{StaticResource IconButton}" Click="Next_Click" FontSize="18" Foreground="#bac9cc" Width="40" Height="40"/>
+                                                        <Button Content="⏮" Style="{StaticResource IconButton}" Click="Prev_Click" FontSize="18" Foreground="#BBBBBB" Width="40" Height="40"/>
+                                                        <Button x:Name="PlayPauseBtn" Content="⏯" Style="{StaticResource IconButton}" Click="PlayPause_Click" FontSize="24" Foreground="#FFFFFF" Width="48" Height="48" Margin="8,0"/>
+                                                        <Button Content="⏭" Style="{StaticResource IconButton}" Click="Next_Click" FontSize="18" Foreground="#BBBBBB" Width="40" Height="40"/>
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
                                     </Border>
                                     
-                                    <Button x:Name="MusicBtn" Content="FORCE SYSTEM SYNC" FontFamily="Rajdhani" FontWeight="Bold" FontSize="14" Background="#00E5FF" Foreground="#0A0E1A" Height="56" Click="MusicBtn_Click">
+                                    <Button x:Name="MusicBtn" Content="FORCE SYSTEM SYNC" FontFamily="Rajdhani" FontWeight="Bold" FontSize="14" Background="#FFFFFF" Foreground="#000000" Height="56" Click="MusicBtn_Click">
                                         <Button.Resources>
                                             <Style TargetType="Border">
                                                 <Setter Property="CornerRadius" Value="12"/>
                                             </Style>
                                         </Button.Resources>
                                         <Button.Effect>
-                                            <DropShadowEffect Color="#00E5FF" BlurRadius="20" ShadowDepth="0" Opacity="0.2"/>
+                                            <DropShadowEffect Color="#FFFFFF" BlurRadius="20" ShadowDepth="0" Opacity="0.2"/>
                                         </Button.Effect>
                                     </Button>
+                                    <!-- SMS Thread count badge -->
+                                    <Border x:Name="SmsCountBadge" Background="#0DFFFFFF" CornerRadius="8" Padding="12,6" Margin="0,8,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="💬 " Foreground="#FFFFFF" FontSize="14"/>
+                                            <TextBlock x:Name="SmsThreadCount" Text="0" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="14"/>
+                                            <TextBlock Text=" conversations" Foreground="#848484" FontSize="12" Margin="4,0,0,0"/>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
 
                                 <!-- Col 3: Notifications -->
@@ -336,11 +399,11 @@
                                     <Border Style="{StaticResource GlassCard}" Padding="24">
                                         <DockPanel>
                                             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
-                                                <TextBlock Text="ACTIVE NOTIFICATIONS" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#00E5FF" VerticalAlignment="Center"/>
-                                                <Border Background="#3300E5FF" CornerRadius="8" Padding="6,2" Margin="8,0,0,0">
-                                                    <TextBlock x:Name="NotifCount" Text="0" FontSize="10" Foreground="#00E5FF" FontWeight="Bold"/>
+                                                <TextBlock Text="ACTIVE NOTIFICATIONS" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                                                <Border Background="#33FFFFFF" CornerRadius="8" Padding="6,2" Margin="8,0,0,0">
+                                                    <TextBlock x:Name="NotifCount" Text="0" FontSize="10" Foreground="#FFFFFF" FontWeight="Bold"/>
                                                 </Border>
-                                                <Button Content="Clear" Style="{StaticResource IconButton}" Click="ClearNotifs_Click" Foreground="#849396" FontSize="10" Margin="16,0,0,0" HorizontalAlignment="Right"/>
+                                                <Button Content="Clear" Style="{StaticResource IconButton}" Click="ClearNotifs_Click" Foreground="#848484" FontSize="10" Margin="16,0,0,0" HorizontalAlignment="Right"/>
                                             </StackPanel>
                                             <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="500">
                                                 <ItemsControl x:Name="NotifList" ItemTemplate="{StaticResource NotifTemplate}"/>
@@ -360,10 +423,13 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <!-- Thread list -->
-                            <Border Grid.Column="0" BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,0" Background="#12182B">
+                            <Border Grid.Column="0" BorderBrush="#1AFFFFFF" BorderThickness="0,0,1,0" Background="#121212">
                                 <DockPanel>
                                     <Border DockPanel.Dock="Top" Padding="24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1">
-                                        <TextBlock Text="MESSAGES" FontWeight="Bold" FontSize="16" FontFamily="Rajdhani, Segoe UI" Foreground="#00E5FF"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="MESSAGES" FontWeight="Bold" FontSize="16" FontFamily="Rajdhani, Segoe UI" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                                            <Button Content="Load" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" Click="LoadMessages_Click" ToolTip="Fetch SMS from phone"/>
+                                        </StackPanel>
                                     </Border>
                                     <ListBox x:Name="SmsThreadList" Background="Transparent" BorderThickness="0" ItemTemplate="{StaticResource SmsThreadTemplate}" SelectionChanged="SmsThread_Selected"/>
                                 </DockPanel>
@@ -375,8 +441,8 @@
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <Border Grid.Row="0" Padding="24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#12182B">
-                                    <TextBlock x:Name="ConversationHeader" Text="Select a conversation" FontWeight="SemiBold" FontSize="16" Foreground="#dfe2f3"/>
+                                <Border Grid.Row="0" Padding="24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#121212">
+                                    <TextBlock x:Name="ConversationHeader" Text="Select a conversation" FontWeight="SemiBold" FontSize="16" Foreground="#DFDFDF"/>
                                 </Border>
                                 <ScrollViewer Grid.Row="1" x:Name="MessagesScroll" VerticalScrollBarVisibility="Auto" Padding="24">
                                     <ItemsControl x:Name="MessagesList">
@@ -394,14 +460,14 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </ScrollViewer>
-                                <Border Grid.Row="2" Padding="24" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0" Background="#12182B">
+                                <Border Grid.Row="2" Padding="24" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0" Background="#121212">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Background="#1A2238" CornerRadius="12" BorderBrush="#334166" BorderThickness="1" Padding="16,12" Margin="0,0,12,0">
-                                            <TextBox x:Name="ReplyBox" Background="Transparent" BorderThickness="0" Foreground="#dfe2f3" FontSize="14" AcceptsReturn="False" Text="" VerticalAlignment="Center"/>
+                                        <Border Grid.Column="0" Background="#1A1A1A" CornerRadius="12" BorderBrush="#333333" BorderThickness="1" Padding="16,12" Margin="0,0,12,0">
+                                            <TextBox x:Name="ReplyBox" Background="Transparent" BorderThickness="0" Foreground="#DFDFDF" FontSize="14" AcceptsReturn="False" Text="" VerticalAlignment="Center"/>
                                         </Border>
                                         <Button Grid.Column="1" Content="Send" Style="{StaticResource PrimaryButton}" Click="SendSms_Click"/>
                                     </Grid>
@@ -413,14 +479,19 @@
                     <!-- TAB 2: Photos -->
                     <TabItem>
                         <DockPanel>
-                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#12182B">
+                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#121212">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="PHONE GALLERY" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#00E5FF"/>
-                                    <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Margin="24,0,0,0" Click="RefreshPhotos_Click"/>
+                                    <TextBlock Text="PHONE GALLERY" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#FFFFFF" VerticalAlignment="Center"/>
+                                    <Button Content="Albums" Style="{StaticResource PrimaryButton}" Margin="24,0,0,0" Click="ShowAlbums_Click"/>
+                                    <Button Content="Photos" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="ShowPhotos_Click"/>
+                                    <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Margin="8,0,0,0" Click="RefreshPhotos_Click"/>
                                 </StackPanel>
                             </Border>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
-                                <WrapPanel x:Name="PhotosPanel"/>
+                                <StackPanel>
+                                    <WrapPanel x:Name="AlbumsPanel" Visibility="Collapsed"/>
+                                    <WrapPanel x:Name="PhotosPanel" Visibility="Visible"/>
+                                </StackPanel>
                             </ScrollViewer>
                         </DockPanel>
                     </TabItem>
@@ -428,8 +499,8 @@
                     <!-- TAB 3: Apps -->
                     <TabItem>
                         <DockPanel>
-                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#12182B">
-                                <TextBlock Text="APP LAUNCHER" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#00E5FF"/>
+                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#121212">
+                                <TextBlock Text="APP LAUNCHER" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#FFFFFF"/>
                             </Border>
                             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="32">
                                 <WrapPanel x:Name="AppsPanel" HorizontalAlignment="Left"/>
@@ -440,17 +511,17 @@
                     <!-- TAB 4: Clipboard -->
                     <TabItem>
                         <DockPanel>
-                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#12182B">
+                            <Border DockPanel.Dock="Top" Padding="32,24" BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1" Background="#121212">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="CLIPBOARD SYNC" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#00E5FF" VerticalAlignment="Center"/>
+                                    <TextBlock Text="CLIPBOARD SYNC" FontWeight="Bold" FontSize="20" FontFamily="Rajdhani, Segoe UI" Foreground="#FFFFFF" VerticalAlignment="Center"/>
                                     <Button Content="Pull from Phone" Style="{StaticResource PrimaryButton}" Margin="24,0,0,0" Click="PullClipboard_Click"/>
                                 </StackPanel>
                             </Border>
                             <StackPanel DockPanel.Dock="Top" Margin="32,24,32,0">
                                 <Border Style="{StaticResource GlassCard}" Padding="24">
                                     <StackPanel>
-                                        <TextBlock Text="Send text to phone clipboard:" Foreground="#bac9cc" FontSize="14" Margin="0,0,0,12"/>
-                                        <TextBox x:Name="ClipboardInput" Background="#1A2238" BorderBrush="#334166" BorderThickness="1" Foreground="#dfe2f3" Padding="16" Height="80" TextWrapping="Wrap" AcceptsReturn="True"/>
+                                        <TextBlock Text="Send text to phone clipboard:" Foreground="#BBBBBB" FontSize="14" Margin="0,0,0,12"/>
+                                        <TextBox x:Name="ClipboardInput" Background="#1A1A1A" BorderBrush="#333333" BorderThickness="1" Foreground="#DFDFDF" Padding="16" Height="80" TextWrapping="Wrap" AcceptsReturn="True"/>
                                         <Button Content="Push to Phone" Style="{StaticResource PrimaryButton}" Margin="0,16,0,0" HorizontalAlignment="Right" Click="PushClipboard_Click"/>
                                     </StackPanel>
                                 </Border>
@@ -465,7 +536,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="{Binding Content}" Foreground="#dfe2f3" TextWrapping="Wrap" MaxHeight="80" TextTrimming="CharacterEllipsis" FontSize="14"/>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Content}" Foreground="#DFDFDF" TextWrapping="Wrap" MaxHeight="80" TextTrimming="CharacterEllipsis" FontSize="14"/>
                                                     <Button Grid.Column="1" Content="Copy" Margin="16,0,0,0" Style="{StaticResource PrimaryButton}" Tag="{Binding Content}" Click="CopyClipItem_Click"/>
                                                 </Grid>
                                             </Border>
@@ -483,7 +554,7 @@
         <!-- DISCONNECTED OVERLAY (w01_qr_connection design) -->
         <Grid x:Name="DisconnectedOverlay" Visibility="Visible" Background="Transparent">
             <!-- Custom Title Bar -->
-            <Border VerticalAlignment="Top" Height="48" Background="#0D1220" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="16,0">
+            <Border VerticalAlignment="Top" Height="48" Background="#111111" BorderBrush="#0DFFFFFF" BorderThickness="0,0,0,1" Padding="16,0">
                 <Grid>
                     <!-- Mac-like controls and Title -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -497,8 +568,8 @@
                     
                     <!-- Standard Windows Controls -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <Button Content="─" Style="{StaticResource IconButton}" Click="Minimize_Click" Foreground="#849396" FontSize="14" Width="32" Height="32"/>
-                        <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Foreground="#849396" FontSize="13" Width="32" Height="32"/>
+                        <Button Content="─" Style="{StaticResource IconButton}" Click="Minimize_Click" Foreground="#848484" FontSize="14" Width="32" Height="32"/>
+                        <Button Content="✕" Style="{StaticResource IconButton}" Click="Close_Click" Foreground="#848484" FontSize="13" Width="32" Height="32"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -507,7 +578,7 @@
             <Border Width="800" Height="800" CornerRadius="400" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
                 <Border.Background>
                     <RadialGradientBrush>
-                        <GradientStop Color="#0A00E5FF" Offset="0"/>
+                        <GradientStop Color="#0A000000" Offset="0"/>
                         <GradientStop Color="Transparent" Offset="1"/>
                     </RadialGradientBrush>
                 </Border.Background>
@@ -516,10 +587,10 @@
             <!-- Main Connection Card -->
             <Border Width="480" Height="560" HorizontalAlignment="Center" VerticalAlignment="Center" CornerRadius="12" BorderBrush="#1AFFFFFF" BorderThickness="1" Margin="0,48,0,0">
                 <Border.Background>
-                    <SolidColorBrush Color="#1B1F2C" Opacity="0.6"/>
+                    <SolidColorBrush Color="#1B1B1B" Opacity="0.6"/>
                 </Border.Background>
                 <Border.Effect>
-                    <DropShadowEffect Color="#00E5FF" BlurRadius="40" ShadowDepth="0" Opacity="0.15"/>
+                    <DropShadowEffect Color="#FFFFFF" BlurRadius="40" ShadowDepth="0" Opacity="0.15"/>
                 </Border.Effect>
                 
                 <Grid Margin="40">
@@ -532,19 +603,19 @@
                     <!-- Header -->
                     <StackPanel Grid.Row="0" HorizontalAlignment="Center">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
-                            <TextBlock Text="⇄" FontFamily="Segoe UI Symbol" FontSize="32" Foreground="#00E5FF" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="⇄" FontFamily="Segoe UI Symbol" FontSize="32" Foreground="#FFFFFF" Margin="0,0,12,0" VerticalAlignment="Center"/>
                             <TextBlock Text="NEXLINK" FontFamily="Rajdhani, Segoe UI" FontSize="40" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
                         </StackPanel>
-                        <TextBlock Text="Waiting for mobile connection..." FontFamily="Nunito, Segoe UI" FontSize="16" Foreground="#849396" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Waiting for mobile connection..." FontFamily="Nunito, Segoe UI" FontSize="16" Foreground="#848484" HorizontalAlignment="Center"/>
                     </StackPanel>
 
                     <!-- QR Area -->
                     <Grid Grid.Row="1" Width="260" Height="260" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <!-- Corner Brackets -->
-                        <Border BorderBrush="#00E5FF" BorderThickness="4,4,0,0" CornerRadius="8,0,0,0" Width="40" Height="40" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-                        <Border BorderBrush="#00E5FF" BorderThickness="0,4,4,0" CornerRadius="0,8,0,0" Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Top"/>
-                        <Border BorderBrush="#00E5FF" BorderThickness="4,0,0,4" CornerRadius="0,0,0,8" Width="40" Height="40" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
-                        <Border BorderBrush="#00E5FF" BorderThickness="0,0,4,4" CornerRadius="0,0,8,0" Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+                        <Border BorderBrush="#FFFFFF" BorderThickness="4,4,0,0" CornerRadius="8,0,0,0" Width="40" Height="40" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                        <Border BorderBrush="#FFFFFF" BorderThickness="0,4,4,0" CornerRadius="0,8,0,0" Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Top"/>
+                        <Border BorderBrush="#FFFFFF" BorderThickness="4,0,0,4" CornerRadius="0,0,0,8" Width="40" Height="40" HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                        <Border BorderBrush="#FFFFFF" BorderThickness="0,0,4,4" CornerRadius="0,0,8,0" Width="40" Height="40" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
                         
                         <!-- Inner White QR Background -->
                         <Border Background="White" CornerRadius="6" Width="220" Height="220" Padding="12" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -552,12 +623,12 @@
                         </Border>
                         
                         <!-- Scan Line -->
-                        <Border Height="2" Width="240" Background="#6600E5FF" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Height="2" Width="240" Background="#66FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Border.RenderTransform>
                                 <TranslateTransform x:Name="ScanLineTransform" Y="-100"/>
                             </Border.RenderTransform>
                             <Border.Effect>
-                                <DropShadowEffect Color="#00E5FF" BlurRadius="10" ShadowDepth="0" Opacity="1"/>
+                                <DropShadowEffect Color="#FFFFFF" BlurRadius="10" ShadowDepth="0" Opacity="1"/>
                             </Border.Effect>
                             <!-- NOTE: A storyboard animation could be added here for the scanning effect -->
                             <Border.Triggers>
@@ -578,19 +649,19 @@
 
                     <!-- Bottom Status Area -->
                     <StackPanel Grid.Row="2" HorizontalAlignment="Center">
-                        <Border Background="#262A37" BorderBrush="#0DFFFFFF" BorderThickness="1" CornerRadius="8" Padding="24,12" Margin="0,0,0,24">
+                        <Border Background="#2A2A2A" BorderBrush="#0DFFFFFF" BorderThickness="1" CornerRadius="8" Padding="24,12" Margin="0,0,0,24">
                             <TextBlock FontFamily="Nunito, Segoe UI" FontSize="16" Foreground="#DFE2F3" HorizontalAlignment="Center">
                                 <Run Text="Open "/>
-                                <Run Text="NexLink" Foreground="#00E5FF" FontWeight="Bold"/>
+                                <Run Text="NexLink" Foreground="#FFFFFF" FontWeight="Bold"/>
                                 <Run Text=" on Android and tap "/>
                                 <Run Text="Scan QR" FontWeight="SemiBold"/>
                             </TextBlock>
                         </Border>
 
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,16">
-                            <Border Background="#1A00E5FF" CornerRadius="16" Padding="12,6">
+                            <Border Background="#1AFFFFFF" CornerRadius="16" Padding="12,6">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <Ellipse Width="8" Height="8" Fill="#00E5FF" Margin="0,0,8,0">
+                                    <Ellipse Width="8" Height="8" Fill="#FFFFFF" Margin="0,0,8,0">
                                         <Ellipse.Triggers>
                                             <EventTrigger RoutedEvent="Loaded">
                                                 <BeginStoryboard>
@@ -601,14 +672,14 @@
                                             </EventTrigger>
                                         </Ellipse.Triggers>
                                     </Ellipse>
-                                    <TextBlock Text="Server running" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#00E5FF"/>
+                                    <TextBlock Text="Server running" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#FFFFFF"/>
                                 </StackPanel>
                             </Border>
-                            <TextBlock Text="·" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#849396" Margin="12,0"/>
+                            <TextBlock Text="·" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#848484" Margin="12,0"/>
                             
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Cloud Relay ID: " FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#849396"/>
-                                <TextBlock Text="{Binding PairId}" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#00E5FF" FontWeight="Bold"/>
+                                <TextBlock Text="Cloud Relay ID: " FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#848484"/>
+                                <TextBlock Text="{Binding PairId}" FontFamily="JetBrains Mono, Consolas" FontSize="14" Foreground="#FFFFFF" FontWeight="Bold"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -617,13 +688,13 @@
 
             <!-- Bottom Actions -->
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="32">
-                <Button BorderBrush="#00E5FF" BorderThickness="1" Background="Transparent" Foreground="#00E5FF" Padding="16,8" Margin="0,0,16,0" Cursor="Hand">
+                <Button BorderBrush="#FFFFFF" BorderThickness="1" Background="Transparent" Foreground="#FFFFFF" Padding="16,8" Margin="0,0,16,0" Cursor="Hand">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="?" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="TROUBLESHOOTING" FontFamily="Rajdhani, Segoe UI" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
-                <Button Background="#262A37" BorderBrush="#1AFFFFFF" BorderThickness="1" Foreground="#DFE2F3" Padding="16,8" Cursor="Hand">
+                <Button Background="#2A2A2A" BorderBrush="#1AFFFFFF" BorderThickness="1" Foreground="#DFE2F3" Padding="16,8" Cursor="Hand">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="⚙" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center"/>
                         <TextBlock Text="SETTINGS" FontFamily="Rajdhani, Segoe UI" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>

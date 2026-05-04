@@ -70,8 +70,9 @@ fun SplashScreen(onSplashFinished: () -> Unit) {
                     .padding(bottom = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val nodeColor = primaryContainer
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val color = primaryContainer
+                    val color = nodeColor
                     val strokeWidth = 6.dp.toPx()
                     val p1 = Offset(size.width * 0.2f, size.height * 0.8f)
                     val p2 = Offset(size.width * 0.2f, size.height * 0.2f)

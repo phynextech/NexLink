@@ -1,42 +1,72 @@
 package com.phynex.NexLink.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val primary = Color(0xFFc3f5ff)
-val onPrimary = Color(0xFF00363d)
-val primaryContainer = Color(0xFF00e5ff)
-val onPrimaryContainer = Color(0xFF00626e)
-val inversePrimary = Color(0xFF006875)
+val primary: Color
+    @Composable get() = MaterialTheme.colorScheme.primary
+val onPrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.onPrimary
+val primaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.primaryContainer
+val onPrimaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.onPrimaryContainer
+val inversePrimary: Color
+    @Composable get() = MaterialTheme.colorScheme.inversePrimary
 
-val secondary = Color(0xFFcdbdff)
-val onSecondary = Color(0xFF370096)
-val secondaryContainer = Color(0xFF5203d5)
-val onSecondaryContainer = Color(0xFFc0acff)
+val secondary: Color
+    @Composable get() = MaterialTheme.colorScheme.secondary
+val onSecondary: Color
+    @Composable get() = MaterialTheme.colorScheme.onSecondary
+val secondaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.secondaryContainer
+val onSecondaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.onSecondaryContainer
 
-val tertiary = Color(0xFFeaecfe)
-val onTertiary = Color(0xFF2c303d)
-val tertiaryContainer = Color(0xFFcdd0e1)
-val onTertiaryContainer = Color(0xFF555967)
+val tertiary: Color
+    @Composable get() = MaterialTheme.colorScheme.tertiary
+val onTertiary: Color
+    @Composable get() = MaterialTheme.colorScheme.onTertiary
+val tertiaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.tertiaryContainer
+val onTertiaryContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.onTertiaryContainer
 
-val error = Color(0xFFffb4ab)
-val onError = Color(0xFF690005)
-val errorContainer = Color(0xFF93000a)
-val onErrorContainer = Color(0xFFffdad6)
+val error: Color
+    @Composable get() = MaterialTheme.colorScheme.error
+val onError: Color
+    @Composable get() = MaterialTheme.colorScheme.onError
+val errorContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.errorContainer
+val onErrorContainer: Color
+    @Composable get() = MaterialTheme.colorScheme.onErrorContainer
 
-val background = Color(0xFF091421)
-val onBackground = Color(0xFFd9e3f7)
+val background: Color
+    @Composable get() = MaterialTheme.colorScheme.background
+val onBackground: Color
+    @Composable get() = MaterialTheme.colorScheme.onBackground
 
-val surface = Color(0xFF091421)
-val onSurface = Color(0xFFd9e3f7)
-val surfaceVariant = Color(0xFF2b3544)
-val onSurfaceVariant = Color(0xFFbac9cc)
-val inverseSurface = Color(0xFFd9e3f7)
-val inverseOnSurface = Color(0xFF273140)
+val surface: Color
+    @Composable get() = MaterialTheme.colorScheme.surface
+val onSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface
+val surfaceVariant: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+val onSurfaceVariant: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+val inverseSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.inverseSurface
+val inverseOnSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.inverseOnSurface
 
-val outline = Color(0xFF849396)
-val outlineVariant = Color(0xFF3b494c)
+val outline: Color
+    @Composable get() = MaterialTheme.colorScheme.outline
+val outlineVariant: Color
+    @Composable get() = MaterialTheme.colorScheme.outlineVariant
 
-val surfaceTint = Color(0xFF00daf3)
+val surfaceTint: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceTint
 
 // Custom specific colors for the app
 val GreenLight = Color(0xFF4CAF50)
@@ -45,5 +75,8 @@ val RedDisconnected = Color(0xFFDA3633)
 val OrangeWarning = Color(0xFFD29922)
 val GradientStart = Color(0xFF091421)
 val GradientEnd = Color(0xFF050f1c)
-val GlassSurface = Color(0x99091421) // 60% opacity surface
-val GlassBorder = Color(0x14FFFFFF) // 8% opacity white border
+
+val GlassSurface: Color
+    @Composable get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+val GlassBorder: Color
+    @Composable get() = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)

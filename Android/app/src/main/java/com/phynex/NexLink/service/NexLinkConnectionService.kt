@@ -61,6 +61,29 @@ class NexLinkConnectionService : Service() {
         wakeLock?.acquire(12 * 60 * 60 * 1000L) // 12 hours max
 
         registerNetworkCallback()
+        
+        scope.launch {
+            while (true) {
+                val vm = MainViewModel.instance
+                if (vm != null) {
+                    vm.isConnected.collect { isConnected ->
+                        if (isConnected) {
+                            updateNotification("Connected")
+                        } else {
+                            val wifiConnected = vm.wifiInfo.value?.connected == true
+                            if (wifiConnected) {
+                                updateNotification("Waiting for pairing...")
+                            } else {
+                                updateNotification("Server error or Offline")
+                            }
+                        }
+                    }
+                    break
+                }
+                delay(500)
+            }
+        }
+        
         Log.d(TAG, "NexLink Connection Service started")
     }
 
@@ -91,7 +114,10 @@ class NexLinkConnectionService : Service() {
         networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 Log.d(TAG, "Network available - triggering reconnect")
-                updateNotification("Connected to network")
+                val isConnected = MainViewModel.instance?.isConnected?.value == true
+                if (!isConnected) {
+                    updateNotification("Waiting for pairing...")
+                }
                 // Give network a moment to fully initialize
                 scope.launch {
                     delay(2000)
@@ -101,7 +127,7 @@ class NexLinkConnectionService : Service() {
 
             override fun onLost(network: Network) {
                 Log.d(TAG, "Network lost")
-                updateNotification("Waiting for WiFi...")
+                updateNotification("Server error or Offline")
             }
         }
 

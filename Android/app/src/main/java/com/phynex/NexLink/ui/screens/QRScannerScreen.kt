@@ -219,10 +219,12 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                 )
 
                                 // Scanning line overlay
+                                val scanPrimary = primary
+                                val scanSecondary = secondary
                                 Canvas(modifier = Modifier.fillMaxSize()) {
                                     drawLine(
                                         brush = Brush.horizontalGradient(
-                                            listOf(Color.Transparent, primary, secondary, primary, Color.Transparent)
+                                            listOf(Color.Transparent, scanPrimary, scanSecondary, scanPrimary, Color.Transparent)
                                         ),
                                         start       = Offset(0f, size.height * scanLineY),
                                         end         = Offset(size.width, size.height * scanLineY),
@@ -230,13 +232,13 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                     )
                                 }
 
-                                // Corner brackets
+                                 // Corner brackets
                                 Canvas(modifier = Modifier
                                     .fillMaxSize()
                                     .padding(12.dp)) {
                                     val cornerSize  = 40f
                                     val strokeWidth = 4f
-                                    val c           = primary
+                                    val c           = scanPrimary
                                     drawLine(c, Offset(0f, cornerSize), Offset(0f, 0f), strokeWidth)
                                     drawLine(c, Offset(0f, 0f), Offset(cornerSize, 0f), strokeWidth)
                                     drawLine(c, Offset(size.width - cornerSize, 0f), Offset(size.width, 0f), strokeWidth)

@@ -12,6 +12,7 @@ const RELAY_EVENTS = [
   'system_state', 'state_update',
   'wifi_info', 'battery_info', 'bt_info', 'wallpaper', 'now_playing',
   'app_list', 'file_list', 'browse', 'open_file', 'download_file',
+  'request_running_apps', 'close_app', 'focus_app', 'running_apps',
   'file_preview', 'file_preview_data',
   'clipboard_pull', 'clipboard_push',
   'notification', 'sms_received', 'sms_list', 'sms_send',
@@ -21,6 +22,26 @@ const RELAY_EVENTS = [
   'mouse_move', 'mouse_tap', 'mouse_right_tap', 'mouse_scroll',
   'usb_connected', 'usb_disconnected',
   'handshake', 'ping', 'pong',
+
+  // ── Reverse sync: Android → Windows ───────────────────────────────────
+  'mobile_status',          // ringer mode + phone volume + notif count
+  'mobile_wallpaper',       // home screen wallpaper image (base64)
+  'mobile_sms_list',        // full SMS thread list (on connect / on request)
+  'mobile_photo_list',      // photo metadata grouped by album (on connect / on request)
+  'mobile_photo_thumbnail', // single photo thumbnail on demand (lazy load)
+
+  // ── Remote control: Windows → Android ────────────────────────────────
+  'lock_phone',             // lock mobile screen instantly
+  'open_camera',            // open CameraX inside NexLink (back/front, no popup)
+  'ringer_mode',            // set ringer mode 0=Silent 1=Vibrate 2=Ring
+  'mobile_volume',          // set phone speaker volume (0-100)
+  'request_mobile_sms',     // Windows asks Android to send sms list
+  'request_photos',         // Windows asks Android to send photo list
+  'request_photo_thumbnail',// Windows asks Android for a specific photo thumbnail
+  'get_thread',             // Windows requests full messages of a thread
+
+  // ── Notifications snapshot ─────────────────────────────────────────────
+  'notification_list',      // bulk notification list on connect
 ];
 
 const registerRelayEvents = (io, socket) => {

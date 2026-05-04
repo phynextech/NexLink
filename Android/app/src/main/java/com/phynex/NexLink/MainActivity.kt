@@ -35,6 +35,46 @@ class MainActivity : ComponentActivity() {
         // Start persistent background service
         NexLinkConnectionService.start(this)
 
+        // Request standard permissions
+        val permissionsToRequest = mutableListOf<String>()
+        val requiredPermissions = mutableListOf(
+            android.Manifest.permission.READ_EXTERNAL_STORAGE,
+            android.Manifest.permission.READ_SMS,
+            android.Manifest.permission.SEND_SMS,
+            android.Manifest.permission.READ_CONTACTS,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            requiredPermissions.add(android.Manifest.permission.READ_MEDIA_IMAGES)
+            requiredPermissions.add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+        requiredPermissions.forEach { perm ->
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, perm)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(perm)
+            }
+        }
+        if (permissionsToRequest.isNotEmpty()) {
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this, permissionsToRequest.toTypedArray(), 100)
+        }
+
+        // Request MANAGE_EXTERNAL_STORAGE for full file system / wallpaper access (Android 11+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (!android.os.Environment.isExternalStorageManager()) {
+                try {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.data = android.net.Uri.parse("package:$packageName")
+                    startActivity(intent)
+                    android.widget.Toast.makeText(this, "Please grant All Files Access to sync your wallpaper.", android.widget.Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                }
+            }
+        }
+
         // Register clipboard listener
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboardManager?.addPrimaryClipChangedListener {
@@ -54,11 +94,39 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            LinkBridgeTheme {
+            val viewModel: MainViewModel = viewModel()
+            val themeMode by viewModel.themeMode.collectAsState()
+            val primaryColor by viewModel.primaryColor.collectAsState()
+
+            LinkBridgeTheme(themeMode = themeMode, primaryColorName = primaryColor) {
                 Surface(modifier = Modifier.fillMaxSize(), color = background) {
-                    LinkBridgeApp()
+                    LinkBridgeApp(viewModel)
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // On Android 10+, background clipboard listening is blocked.
+        // Sync the clipboard immediately when the app returns to the foreground.
+        val vm = MainViewModel.instance ?: return
+        if (vm.isConnected.value && clipboardManager?.hasPrimaryClip() == true) {
+            try {
+                val item = clipboardManager?.primaryClip?.getItemAt(0)
+                val text = item?.text?.toString()
+                if (!text.isNullOrEmpty()) {
+                    val hash = text.hashCode()
+                    if (hash != lastClipHash) {
+                        lastClipHash = hash
+                        vm.pushClipboard(text)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        // Push live mobile status (ringer/volume) every time we return to foreground
+        if (vm.isConnected.value) {
+            vm.sendMobileStatus()
         }
     }
 
@@ -89,9 +157,8 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun LinkBridgeApp() {
+fun LinkBridgeApp(viewModel: MainViewModel) {
     val navController = rememberNavController()
-    val viewModel: MainViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -133,7 +200,8 @@ fun LinkBridgeApp() {
                 onNavigateToAppLauncher  = { navController.navigate(Screen.APP_LAUNCHER.route) },
                 onNavigateToClipboard    = { navController.navigate(Screen.CLIPBOARD.route) },
                 onNavigateToCameraScreen = { navController.navigate(Screen.CAMERA_SCREEN.route) },
-                onNavigateToFileBrowser  = { navController.navigate(Screen.FILE_BROWSER.route) }
+                onNavigateToFileBrowser  = { navController.navigate(Screen.FILE_BROWSER.route) },
+                onNavigateToTrackpad     = { navController.navigate(Screen.TRACKPAD.route) }
             )
         }
 
@@ -155,6 +223,10 @@ fun LinkBridgeApp() {
 
         composable(Screen.CAMERA_SCREEN.route) {
             CameraScreenPage(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.TRACKPAD.route) {
+            TrackpadScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
     }
 }

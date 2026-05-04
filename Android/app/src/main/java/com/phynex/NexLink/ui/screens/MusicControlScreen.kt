@@ -180,16 +180,36 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             // ── Seek Bar ─────────────────────────────────────────────────
             Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp)) {
-                val position = nowPlaying?.position ?: 0.0
+                val basePosition = nowPlaying?.position ?: 0.0
                 val duration = nowPlaying?.duration ?: 0.0
-                val progress = if (duration > 0) (position / duration).toFloat().coerceIn(0f, 1f) else 0f
+                val isPlaying = nowPlaying?.isPlaying == true
 
+                var currentPosition by remember(basePosition, isPlaying) { mutableStateOf(basePosition) }
+                val lastUpdateMillis = remember(basePosition, isPlaying) { System.currentTimeMillis() }
+                
+                var isDragging by remember { mutableStateOf(false) }
+
+                LaunchedEffect(basePosition, isPlaying, isDragging) {
+                    if (isPlaying && !isDragging) {
+                        while (true) {
+                            kotlinx.coroutines.delay(16)
+                            val elapsed = (System.currentTimeMillis() - lastUpdateMillis) / 1000.0
+                            currentPosition = (basePosition + elapsed).coerceAtMost(duration)
+                        }
+                    }
+                }
+
+                val progress = if (duration > 0) (currentPosition / duration).toFloat().coerceIn(0f, 1f) else 0f
                 var sliderValue by remember(progress) { mutableStateOf(progress) }
 
                 Slider(
-                    value = sliderValue,
-                    onValueChange = { sliderValue = it },
+                    value = if (isDragging) sliderValue else progress,
+                    onValueChange = { 
+                        isDragging = true
+                        sliderValue = it 
+                    },
                     onValueChangeFinished = {
+                        isDragging = false
                         val newPosition = (sliderValue * duration)
                         viewModel.seekMedia(newPosition)
                     },
@@ -202,12 +222,13 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 )
 
                 fun formatTime(seconds: Double): String {
+                    if (seconds.isNaN() || seconds.isInfinite()) return "0:00"
                     val m = (seconds / 60).toInt()
                     val s = (seconds % 60).toInt()
                     return String.format("%d:%02d", m, s)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(position), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
+                    Text(formatTime(if (isDragging) sliderValue * duration else currentPosition), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
                     Text(formatTime(duration),  style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
                 }
             }
@@ -270,29 +291,8 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
-
-            // ── Volume Control ────────────────────────────────────────────
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.AutoMirrored.Filled.VolumeDown, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(18.dp))
-                Slider(
-                    value = volume.toFloat(),
-                    onValueChange = { viewModel.sendVolume(it.toInt()) },
-                    valueRange = 0f..100f,
-                    modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(0.2f)
-                    )
-                )
-                Icon(Icons.AutoMirrored.Filled.VolumeUp, null, tint = Color.White.copy(0.4f), modifier = Modifier.size(18.dp))
-            }
-
-            Spacer(Modifier.height(40.dp))
+            // Volume removed to make layout full screen
+            Spacer(Modifier.height(10.dp))
         }
     }
 }

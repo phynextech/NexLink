@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -20,6 +21,7 @@ namespace NexLink.ViewModels
         public bool UsbModeActive { get => _usbModeActive; set { _usbModeActive = value; OnPropertyChanged(); } }
         private readonly ScreenCaptureService _screenCapture = new();
         private readonly CameraService _cameraService = new();
+        private readonly AudioStreamService _audioStreamService = new();
         private readonly ClipboardService _clipboardService = new();
 
         // ─── Connection ───
@@ -101,6 +103,8 @@ namespace NexLink.ViewModels
 
         private System.Threading.Timer? _infoTimer;
         private System.Threading.Timer? _wifiTimer;
+        private System.Threading.Timer? _appsTimer;
+        private int _lastRunningAppsHash = 0;
         private string _lastWifiSsid = "";
 
         private void StartPeriodicInfoSend()
@@ -123,12 +127,27 @@ namespace NexLink.ViewModels
                     WsService.Send(new { type = "wifi_info", ssid, strength = 80 });
                 }
             }, null, 2000, 2000);
+
+            _appsTimer = new System.Threading.Timer(_ =>
+            {
+                if (!IsConnected) return;
+                var apps = SystemInfoService.GetRunningApps();
+                var perf = SystemInfoService.GetPerformanceMetrics();
+                int hash = string.Join(",", apps.Select(a => a.Name)).GetHashCode();
+                if (hash != _lastRunningAppsHash)
+                {
+                    _lastRunningAppsHash = hash;
+                }
+                // Send performance continuously along with apps
+                WsService.Send(new { type = "state_update", running_apps = apps, performance = perf });
+            }, null, 2000, 2000);
         }
 
         private void StopPeriodicInfoSend()
         {
             _infoTimer?.Dispose(); _infoTimer = null;
             _wifiTimer?.Dispose(); _wifiTimer = null;
+            _appsTimer?.Dispose(); _appsTimer = null;
         }
 
         private void HandleMessage(JObject msg)
@@ -169,7 +188,18 @@ namespace NexLink.ViewModels
                     break;
 
                 case "launch_app":
-                    SystemInfoService.LaunchApp(msg["appPath"]?.ToString() ?? msg["appName"]?.ToString() ?? "");
+                    string lPath = msg["appPath"]?.ToString() ?? "";
+                    string lName = msg["appName"]?.ToString() ?? "";
+                    string lHandle = msg["appHandle"]?.ToString() ?? "";
+                    if (lPath == "##CLOSE##") {
+                        SystemInfoService.CloseApp(lHandle);
+                        SendRunningApps();
+                    } else if (lPath == "##FOCUS##") {
+                        SystemInfoService.FocusApp(lHandle);
+                        SendRunningApps();
+                    } else {
+                        SystemInfoService.LaunchApp(string.IsNullOrEmpty(lPath) ? lName : lPath);
+                    }
                     break;
 
                 case "browse":
@@ -195,12 +225,19 @@ namespace NexLink.ViewModels
                     break;
 
                 case "start_camera":
+                    var enableMic = msg["enableMic"]?.ToObject<bool>() ?? false;
                     _cameraService.StartStreaming(b64 =>
                         WsService.Send(new { type = "camera_frame", data = b64 }), 100);
+                    if (enableMic)
+                    {
+                        _audioStreamService.StartStreaming(b64 =>
+                            WsService.Send(new { type = "camera_audio", data = b64 }));
+                    }
                     break;
 
                 case "stop_camera":
                     _cameraService.StopStreaming();
+                    _audioStreamService.StopStreaming();
                     break;
 
                 case "clipboard_push":
@@ -216,6 +253,7 @@ namespace NexLink.ViewModels
                 case "request_info":
                     SendSystemInfo();
                     SendWallpaper();
+                    SendRunningApps();
                     break;
 
                 case "notification":
@@ -247,6 +285,10 @@ namespace NexLink.ViewModels
 
                 case "mouse_right_tap":
                     MouseControlService.RightClick();
+                    break;
+
+                case "mouse_middle_tap":
+                    MouseControlService.MiddleClick();
                     break;
 
                 case "mouse_scroll":
@@ -300,6 +342,14 @@ namespace NexLink.ViewModels
         {
             var apps = SystemInfoService.GetInstalledApps();
             WsService.Send(new { type = "app_list", apps });
+        }
+
+        private void SendRunningApps()
+        {
+            var apps = SystemInfoService.GetRunningApps();
+            var perf = SystemInfoService.GetPerformanceMetrics();
+            _lastRunningAppsHash = string.Join(",", apps.Select(a => a.Name)).GetHashCode();
+            WsService.Send(new { type = "state_update", running_apps = apps, performance = perf });
         }
 
         private void SendFileList(string path)

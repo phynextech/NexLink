@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -161,18 +162,50 @@ namespace NexLink
                             break;
 
                         case "sms_list":
+                        case "mobile_sms_list":
                             var threads = msg["threads"]?.ToObject<List<SmsThread>>();
                             if (threads != null)
                             {
                                 _vm.SmsThreads.Clear();
                                 foreach (var t in threads) _vm.SmsThreads.Add(t);
                                 SmsThreadList.ItemsSource = _vm.SmsThreads;
+                                SmsThreadCount.Text = threads.Count.ToString();
                             }
                             break;
 
                         case "photo_list":
-                            var photos = msg["photos"]?.ToObject<List<PhotoItem>>();
-                            if (photos != null) PopulatePhotos(photos);
+                        case "mobile_photo_list":
+                            var albums = msg["albums"]?.ToObject<List<PhotoAlbum>>();
+                            if (albums != null)
+                                Dispatcher.Invoke(() => PopulateAlbums(albums));
+                            else
+                            {
+                                // Fallback: flat photo list
+                                var photos = msg["photos"]?.ToObject<List<PhotoItem>>();
+                                if (photos != null) PopulatePhotos(photos);
+                            }
+                            break;
+
+                        case "mobile_photo_thumbnail":
+                            var thumbPath = msg["path"]?.ToString() ?? "";
+                            var thumbData = msg["thumbnail"]?.ToString() ?? "";
+                            if (!string.IsNullOrEmpty(thumbPath) && !string.IsNullOrEmpty(thumbData))
+                                ApplyPhotoThumbnail(thumbPath, thumbData);
+                            break;
+
+                        case "thread_messages":
+                            var threadId  = msg["threadId"]?.ToString() ?? "";
+                            var msgList   = msg["messages"]?.ToObject<List<SmsMessage>>();
+                            if (msgList != null)
+                            {
+                                var thread = _vm.SmsThreads.FirstOrDefault(t => t.Id == threadId);
+                                if (thread != null)
+                                {
+                                    thread.Messages = msgList;
+                                    MessagesList.ItemsSource = msgList;
+                                    MessagesScroll.ScrollToEnd();
+                                }
+                            }
                             break;
 
                         case "clipboard_push":
@@ -202,6 +235,38 @@ namespace NexLink
                                     _lastClipboardHash = imgData.GetHashCode().ToString();
                                 } catch { }
                             }
+                            break;
+
+                        case "mobile_wallpaper":
+                            var wallData = msg["data"]?.ToString();
+                            if (!string.IsNullOrEmpty(wallData))
+                            {
+                                try
+                                {
+                                    var bytes = Convert.FromBase64String(wallData);
+                                    using var ms = new System.IO.MemoryStream(bytes);
+                                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                                    bmp.BeginInit(); bmp.StreamSource = ms; bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; bmp.EndInit();
+                                    MobileWallpaperImage.Source = bmp;
+                                } catch { }
+                            }
+                            break;
+
+                        case "mobile_status":
+                            var ringerMode  = msg["ringerMode"]?.ToObject<int>() ?? 2;
+                            var phoneVol    = msg["phoneVolume"]?.ToObject<int>() ?? 0;
+                            var ringerVol   = msg["ringerVolume"]?.ToObject<int>() ?? 0;
+                            var notifCount  = msg["notifCount"]?.ToObject<int>() ?? 0;
+                            // Ringer mode label
+                            var ringerLabel = ringerMode switch { 0 => "🔇 Silent", 1 => "📳 Vibrate", _ => "🔔 Ring" };
+                            MobileRingerLabel.Text    = ringerLabel;
+                            MobileVolumeLabel.Text    = $"{phoneVol}%";
+                            MobileRingerVolLabel.Text = $"{ringerVol}%";
+                            MobileNotifCountLabel.Text = notifCount.ToString();
+                            // Highlight the active ringer button
+                            RingerSilentBtn.Opacity  = ringerMode == 0 ? 1.0 : 0.4;
+                            RingerVibrateBtn.Opacity = ringerMode == 1 ? 1.0 : 0.4;
+                            RingerRingBtn.Opacity    = ringerMode == 2 ? 1.0 : 0.4;
                             break;
 
                         case "volume":
@@ -288,6 +353,41 @@ namespace NexLink
                             }));
                             break;
 
+                        case "rename_file":
+                            var renamePath = msg["path"]?.ToString() ?? "";
+                            var newName = msg["newName"]?.ToString() ?? "";
+                            SystemInfoService.RenameFile(renamePath, newName);
+                            break;
+
+                        case "create_folder":
+                            var createFolderBase = msg["path"]?.ToString() ?? "";
+                            var createFolderName = msg["name"]?.ToString() ?? "";
+                            SystemInfoService.CreateFolder(createFolderBase, createFolderName);
+                            break;
+
+                        case "create_file":
+                            var createFileBase = msg["path"]?.ToString() ?? "";
+                            var createFileName = msg["name"]?.ToString() ?? "";
+                            SystemInfoService.CreateFile(createFileBase, createFileName);
+                            break;
+
+                        case "delete_file":
+                            var deletePath = msg["path"]?.ToString() ?? "";
+                            SystemInfoService.DeleteFile(deletePath);
+                            break;
+
+                        case "copy_file":
+                            var copySource = msg["source"]?.ToString() ?? "";
+                            var copyDestDir = msg["destDir"]?.ToString() ?? "";
+                            SystemInfoService.CopyFile(copySource, copyDestDir);
+                            break;
+
+                        case "move_file":
+                            var moveSource = msg["source"]?.ToString() ?? "";
+                            var moveDestDir = msg["destDir"]?.ToString() ?? "";
+                            SystemInfoService.MoveFile(moveSource, moveDestDir);
+                            break;
+
                         case "request_info":
                         case "get_wallpaper":
                             // Send full system_state with ALL real values, log each one
@@ -324,6 +424,7 @@ namespace NexLink
         // ─── 2-Second Broadcast Timer ───
         private void StartBroadcastTimer()
         {
+            /*
             _broadcastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _broadcastTimer.Tick += (_, _) =>
             {
@@ -331,6 +432,7 @@ namespace NexLink
                     BroadcastSystemInfo();
             };
             _broadcastTimer.Start();
+            */
         }
 
         /// <summary>
@@ -574,8 +676,8 @@ namespace NexLink
                         Topmost         = true,
                         ShowInTaskbar   = false,
                         ResizeMode      = ResizeMode.NoResize,
-                        Left            = SystemParameters.WorkArea.Width - 240,
-                        Top             = SystemParameters.WorkArea.Height - 80,
+                        Left            = 20,
+                        Top             = 20,
                     };
                     var border = new Border
                     {
@@ -705,10 +807,19 @@ namespace NexLink
             return template;
         }
 
-        // ─── Photos ───
         private void PopulatePhotos(List<PhotoItem> photos)
         {
             PhotosPanel.Children.Clear();
+            AlbumsPanel.Children.Clear();
+
+            // Add placeholder album
+            var albumBorder = new Border { Width = 150, Height = 150, Margin = new Thickness(8), CornerRadius = new CornerRadius(12), Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#21262D")), Cursor = Cursors.Hand };
+            var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+            sp.Children.Add(new TextBlock { Text = "📁", FontSize = 48, HorizontalAlignment = HorizontalAlignment.Center });
+            sp.Children.Add(new TextBlock { Text = "Camera", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
+            albumBorder.Child = sp;
+            AlbumsPanel.Children.Add(albumBorder);
+
             foreach (var photo in photos)
             {
                 var border = new Border
@@ -717,8 +828,10 @@ namespace NexLink
                     Margin = new Thickness(4),
                     CornerRadius = new CornerRadius(8),
                     Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#21262D")),
-                    Cursor = Cursors.Hand
+                    Cursor = Cursors.Hand,
+                    Tag = photo.Path
                 };
+
                 if (photo.ThumbnailBase64 != null)
                 {
                     var img = new System.Windows.Controls.Image { Stretch = Stretch.UniformToFill };
@@ -735,8 +848,173 @@ namespace NexLink
                         VerticalAlignment = VerticalAlignment.Center
                     };
                 }
+                border.MouseLeftButtonUp += Photo_Click;
                 PhotosPanel.Children.Add(border);
             }
+        }
+
+        // Dictionary to map photo path → thumbnail border for lazy-load injection
+        private readonly Dictionary<string, Border> _photoThumbnailMap = new();
+
+        private void PopulateAlbums(List<PhotoAlbum> albums)
+        {
+            AlbumsPanel.Children.Clear();
+            PhotosPanel.Children.Clear();
+            _photoThumbnailMap.Clear();
+            AlbumsPanel.Visibility = Visibility.Visible;
+            PhotosPanel.Visibility = Visibility.Collapsed;
+
+            foreach (var album in albums)
+            {
+                var albumCard = CreateAlbumCard(album);
+                AlbumsPanel.Children.Add(albumCard);
+            }
+        }
+
+        private Border CreateAlbumCard(PhotoAlbum album)
+        {
+            var card = new Border
+            {
+                Width = 160, Height = 180, Margin = new Thickness(8),
+                CornerRadius = new CornerRadius(14),
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1A1A2E")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#30363D")),
+                BorderThickness = new Thickness(1),
+                Cursor = Cursors.Hand,
+                Tag = album
+            };
+
+            var icon = album.Name switch
+            {
+                "Camera"          => "📷",
+                "WhatsApp Images" => "💬",
+                "Screenshots"     => "🖥️",
+                "Download"        => "⬇️",
+                _                 => "🖼️"
+            };
+
+            var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+
+            // Cover thumbnail or icon
+            if (!string.IsNullOrEmpty(album.CoverThumbnail))
+            {
+                var coverImg = new System.Windows.Controls.Image { Width = 100, Height = 100, Stretch = Stretch.UniformToFill };
+                coverImg.Clip = new System.Windows.Media.RectangleGeometry { Rect = new Rect(0, 0, 100, 100), RadiusX = 8, RadiusY = 8 };
+                var bmp = NexLink.Helpers.Helpers.Base64ToBitmapImage(album.CoverThumbnail);
+                if (bmp != null) coverImg.Source = bmp;
+                sp.Children.Add(coverImg);
+            }
+            else
+            {
+                sp.Children.Add(new TextBlock { Text = icon, FontSize = 40, HorizontalAlignment = HorizontalAlignment.Center });
+            }
+
+            sp.Children.Add(new TextBlock { Text = album.Name, Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 140 });
+            sp.Children.Add(new TextBlock { Text = $"{album.PhotoCount} photos", Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8B949E")), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center });
+            card.Child = sp;
+
+            card.MouseLeftButtonUp += (s, e) => ShowAlbumPhotos(album);
+            return card;
+        }
+
+        private void ShowAlbumPhotos(PhotoAlbum album)
+        {
+            AlbumsPanel.Visibility = Visibility.Collapsed;
+            PhotosPanel.Visibility = Visibility.Visible;
+            PhotosPanel.Children.Clear();
+            _photoThumbnailMap.Clear();
+
+            // Back button
+            var backBtn = new Button
+            {
+                Content = "← Albums",
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#161B22")),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(12, 6, 12, 6),
+                Margin = new Thickness(0, 0, 0, 16),
+                Cursor = Cursors.Hand
+            };
+            backBtn.Click += (s, e) => { AlbumsPanel.Visibility = Visibility.Visible; PhotosPanel.Visibility = Visibility.Collapsed; };
+            PhotosPanel.Children.Add(backBtn);
+
+            foreach (var photo in album.Photos)
+            {
+                var border = new Border
+                {
+                    Width = 120, Height = 120, Margin = new Thickness(4),
+                    CornerRadius = new CornerRadius(8),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#21262D")),
+                    Cursor = Cursors.Hand,
+                    Tag = photo.Path
+                };
+
+                // Placeholder while loading
+                var loadingTb = new TextBlock { Text = "🖼️", FontSize = 28, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                border.Child = loadingTb;
+
+                // Request thumbnail lazily
+                _photoThumbnailMap[photo.Path] = border;
+                _vm.WsService.Send(new { type = "request_photo_thumbnail", path = photo.Path });
+
+                border.MouseLeftButtonUp += Photo_Click;
+                PhotosPanel.Children.Add(border);
+            }
+        }
+
+        private void ApplyPhotoThumbnail(string path, string thumbnailB64)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (!_photoThumbnailMap.TryGetValue(path, out var border)) return;
+                try
+                {
+                    var bmp = NexLink.Helpers.Helpers.Base64ToBitmapImage(thumbnailB64);
+                    if (bmp == null) return;
+                    var img = new System.Windows.Controls.Image { Stretch = Stretch.UniformToFill };
+                    img.Source = bmp;
+                    border.Child = img;
+                }
+                catch { }
+            });
+        }
+
+        private void Photo_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is Border b && b.Child is System.Windows.Controls.Image img && img.Source != null)
+            {
+                // Show fullscreen preview in a dialog
+                var dlg = new System.Windows.Window
+                {
+                    Width = 900, Height = 700,
+                    Background = new SolidColorBrush(Colors.Black),
+                    WindowStyle = WindowStyle.None,
+                    AllowsTransparency = true,
+                    Topmost = true,
+                    Owner = this
+                };
+                var previewImg = new System.Windows.Controls.Image { Source = img.Source, Stretch = Stretch.Uniform };
+                var closeBtn   = new Button { Content = "✕", Foreground = Brushes.White, Background = Brushes.Transparent, BorderThickness = new Thickness(0), FontSize = 24, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(16), Cursor = Cursors.Hand };
+                closeBtn.Click += (_, _) => dlg.Close();
+                var grid = new Grid();
+                grid.Children.Add(previewImg);
+                grid.Children.Add(closeBtn);
+                dlg.Content = grid;
+                dlg.MouseLeftButtonDown += (_, _) => dlg.DragMove();
+                dlg.ShowDialog();
+            }
+        }
+
+        private void ShowAlbums_Click(object sender, RoutedEventArgs e)
+        {
+            PhotosPanel.Visibility = Visibility.Collapsed;
+            AlbumsPanel.Visibility = Visibility.Visible;
+        }
+
+        private void ShowPhotos_Click(object sender, RoutedEventArgs e)
+        {
+            AlbumsPanel.Visibility = Visibility.Collapsed;
+            PhotosPanel.Visibility = Visibility.Visible;
         }
 
         // ─── Title bar ───
@@ -752,7 +1030,18 @@ namespace NexLink
         }
 
         // ─── Quick actions ───
-        private void LockBtn_Click(object sender, RoutedEventArgs e) => SystemInfoService.LockPC();
+        private void LockBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = DataContext as ViewModels.MainViewModel;
+            vm?.WsService?.Send(new { type = "lock_phone" });
+        }
+
+        private void CameraBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = DataContext as ViewModels.MainViewModel;
+            string lens = (UseFrontCamera.IsChecked == true) ? "front" : "back";
+            vm?.WsService?.Send(new { type = "open_camera", lens = lens });
+        }
         private void MuteBtn_Click(object sender, RoutedEventArgs e) => SystemInfoService.SetVolume(0);
         private void MusicBtn_Click(object sender, RoutedEventArgs e) => MediaControlService.SendMediaKey("play_pause");
 
@@ -767,8 +1056,17 @@ namespace NexLink
             var thread = SmsThreadList.SelectedItem as SmsThread;
             if (thread == null) return;
             ConversationHeader.Text = thread.ContactName;
-            MessagesList.ItemsSource = thread.Messages;
-            MessagesScroll.ScrollToEnd();
+            // Show inline messages if we already have them
+            if (thread.Messages != null && thread.Messages.Count > 0)
+            {
+                MessagesList.ItemsSource = thread.Messages;
+                MessagesScroll.ScrollToEnd();
+            }
+            else
+            {
+                MessagesList.ItemsSource = null;
+            }
+            // Always fetch fresh from Android
             _vm.WsService.Send(new { type = "get_thread", threadId = thread.Id });
         }
 
@@ -776,7 +1074,15 @@ namespace NexLink
         {
             var thread = SmsThreadList.SelectedItem as SmsThread;
             if (thread == null || string.IsNullOrWhiteSpace(ReplyBox.Text)) return;
+            // Send via Android SmsManager
             _vm.WsService.Send(new { type = "sms_send", threadId = thread.Id, body = ReplyBox.Text });
+            // Optimistically add to conversation
+            var optimistic = new SmsMessage { Id = Guid.NewGuid().ToString(), Body = ReplyBox.Text, Timestamp = DateTime.Now, IsSent = true };
+            if (thread.Messages == null) thread.Messages = new List<SmsMessage>();
+            thread.Messages.Add(optimistic);
+            MessagesList.ItemsSource = null;
+            MessagesList.ItemsSource = thread.Messages;
+            MessagesScroll.ScrollToEnd();
             ReplyBox.Text = "";
         }
 
@@ -807,7 +1113,23 @@ namespace NexLink
 
         // ─── Photos refresh ───
         private void RefreshPhotos_Click(object sender, RoutedEventArgs e)
-            => _vm.WsService.Send(new { type = "request_photos" });
+        {
+            _vm.WsService.Send(new { type = "request_photos" });
+        }
+
+        // ─── Messages load ───
+        private void LoadMessages_Click(object sender, RoutedEventArgs e)
+            => _vm.WsService.Send(new { type = "request_mobile_sms" });
+
+        // ─── Ringer mode controls (Windows → Android) ───
+        private void RingerSilent_Click(object sender, RoutedEventArgs e)
+            => _vm.WsService.Send(new { type = "ringer_mode", mode = 0 });
+
+        private void RingerVibrate_Click(object sender, RoutedEventArgs e)
+            => _vm.WsService.Send(new { type = "ringer_mode", mode = 1 });
+
+        private void RingerRing_Click(object sender, RoutedEventArgs e)
+            => _vm.WsService.Send(new { type = "ringer_mode", mode = 2 });
     }
 
     // Clipboard data item for the list
@@ -816,3 +1138,4 @@ namespace NexLink
         public string Content { get; set; } = "";
     }
 }
+

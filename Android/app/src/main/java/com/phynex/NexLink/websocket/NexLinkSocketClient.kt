@@ -205,8 +205,18 @@ class NexLinkSocketClient {
             // ── Relay all known event types to registered listeners ───────
             ALL_EVENTS.forEach { event ->
                 sock.on(event) { args ->
+                    // Socket.IO can deliver payload as:
+                    //   JSONObject  → normal named-event
+                    //   JSONArray   → relay wraps in array: [{...}]  ← this was crashing!
+                    //   String      → rare, raw JSON string
                     val raw = args?.firstOrNull()
                     val jsonObj: JsonObject = when (raw) {
+                        is org.json.JSONArray -> {
+                            // Array wrapper: take first element
+                            val first = if (raw.length() > 0) raw.optJSONObject(0) else null
+                            if (first != null) parseJsonObject(first.toString())
+                            else JsonObject().also { it.addProperty("type", event) }
+                        }
                         is JSONObject -> parseJsonObject(raw.toString())
                         is String     -> parseJsonObject(raw)
                         else          -> JsonObject().also { it.addProperty("type", event) }
@@ -214,9 +224,11 @@ class NexLinkSocketClient {
                     if (!jsonObj.has("type")) jsonObj.addProperty("type", event)
                     _lastMessage.value = jsonObj
                     try {
+                        Log.d(TAG, "Invoking listener for $event with: ${jsonObj.toString().take(200)}")
                         listeners[event]?.invoke(jsonObj)
                     } catch (e: Exception) {
                         Log.e(TAG, "Listener crash for event '$event': ${e.message}")
+                        Log.e(TAG, "Problematic JSON: $jsonObj")
                     }
                 }
             }
@@ -230,7 +242,17 @@ class NexLinkSocketClient {
 
     private fun parseJsonObject(text: String): JsonObject {
         return try {
-            JsonParser.parseString(text).asJsonObject
+            val element = JsonParser.parseString(text)
+            when {
+                element.isJsonObject -> element.asJsonObject
+                // If server wraps in array [{ ... }], take first element
+                element.isJsonArray  -> {
+                    val arr = element.asJsonArray
+                    if (arr.size() > 0 && arr[0].isJsonObject) arr[0].asJsonObject
+                    else JsonObject()
+                }
+                else -> JsonObject()
+            }
         } catch (_: Exception) {
             JsonObject()
         }
@@ -251,6 +273,9 @@ class NexLinkSocketClient {
             "webrtc_offer", "webrtc_answer", "webrtc_ice",
             "peer_online", "peer_offline",
             "usb_connected", "usb_disconnected",
+            "lock_phone", "open_camera",
+            "media_control", "media_seek",
+            "request_info", "get_wallpaper",
             "error", "pong",
         )
     }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -20,6 +21,275 @@ namespace NexLink.Services
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool LockWorkStation();
         public static void LockPC() => LockWorkStation();
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowText(IntPtr hWnd, StringBuilder strText, int maxCount);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        private static extern void SwitchToThisWindow(IntPtr hWnd, bool fUnknown);
+
+        [DllImport("user32.dll")]
+        private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MEMORYSTATUSEX
+        {
+            public uint dwLength;
+            public uint dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
+        private static float _lastGpu = 0;
+        private static float _lastVram = 0;
+        private static System.Threading.Timer? _gpuTimer;
+        private static System.Diagnostics.PerformanceCounter? _cpuCounter;
+
+        public static object GetPerformanceMetrics()
+        {
+            if (_gpuTimer == null)
+            {
+                _gpuTimer = new System.Threading.Timer(_ =>
+                {
+                    try
+                    {
+                        using var searcher = new System.Management.ManagementObjectSearcher("select * from Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine");
+                        float maxUtil = 0;
+                        foreach (System.Management.ManagementObject obj in searcher.Get())
+                        {
+                            if (obj["Name"]?.ToString().Contains("engtype_3D") == true)
+                            {
+                                float util = Convert.ToSingle(obj["UtilizationPercentage"]);
+                                maxUtil += util;
+                            }
+                        }
+                        _lastGpu = Math.Min(100, maxUtil);
+                    }
+                    catch { }
+
+                    try
+                    {
+                        using var searcher = new System.Management.ManagementObjectSearcher("select AdapterRAM from Win32_VideoController");
+                        float totalVram = 0;
+                        foreach (System.Management.ManagementObject obj in searcher.Get())
+                            totalVram += Convert.ToSingle(obj["AdapterRAM"]);
+
+                        using var vramSearcher = new System.Management.ManagementObjectSearcher("select * from Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory");
+                        float usedVramBytes = 0;
+                        foreach (System.Management.ManagementObject obj in vramSearcher.Get())
+                            usedVramBytes += Convert.ToSingle(obj["LocalUsage"]);
+
+                        if (totalVram > 0) _lastVram = (usedVramBytes / totalVram) * 100;
+                    }
+                    catch { }
+                }, null, 0, 3000);
+            }
+
+            try
+            {
+                if (_cpuCounter == null)
+                    _cpuCounter = new System.Diagnostics.PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+                float cpu = _cpuCounter.NextValue();
+                
+                var mem = new MEMORYSTATUSEX();
+                mem.dwLength = (uint)Marshal.SizeOf(typeof(MEMORYSTATUSEX));
+                GlobalMemoryStatusEx(ref mem);
+                uint ram = mem.dwMemoryLoad;
+
+                var (_, strength, _) = GetWifiInfo();
+
+                return new {
+                    cpu = (int)cpu,
+                    gpu = (int)_lastGpu,
+                    ram = (int)ram,
+                    vram = (int)_lastVram,
+                    fps = -1,
+                    wifi = strength
+                };
+            }
+            catch
+            {
+                return new { cpu = -1, gpu = -1, ram = -1, vram = -1, fps = -1, wifi = -1 };
+            }
+        }
+
+        private static Dictionary<string, string> _iconCache = new();
+
+        private static string GetIconBase64(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "";
+            if (_iconCache.TryGetValue(path, out var b64)) return b64;
+            try
+            {
+                var icon = Icon.ExtractAssociatedIcon(path);
+                if (icon != null)
+                {
+                    using var bmp = icon.ToBitmap();
+                    using var ms = new MemoryStream();
+                    bmp.Save(ms, ImageFormat.Png);
+                    b64 = Convert.ToBase64String(ms.ToArray());
+                    _iconCache[path] = b64;
+                    return b64;
+                }
+            }
+            catch { }
+            return "";
+        }
+
+
+
+        public static List<Models.AppItem> GetRunningApps()
+        {
+            var apps = new List<Models.AppItem>();
+            try
+            {
+                IntPtr fgHwnd = GetForegroundWindow();
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    if (IsWindowVisible(hWnd))
+                    {
+                        int cloaked = 0;
+                        DwmGetWindowAttribute(hWnd, 14, out cloaked, sizeof(int));
+                        if (cloaked != 0) return true;
+
+                        int length = GetWindowTextLength(hWnd);
+                        if (length > 0)
+                        {
+                            var builder = new StringBuilder(length + 1);
+                            GetWindowText(hWnd, builder, builder.Capacity);
+                            string title = builder.ToString();
+
+                            // Filter common hidden windows
+                            if (title != "Program Manager" && !title.Contains("Default IME"))
+                            {
+                                GetWindowThreadProcessId(hWnd, out uint processId);
+                                string path = "";
+                                try
+                                {
+                                    var proc = System.Diagnostics.Process.GetProcessById((int)processId);
+                                    path = proc.MainModule?.FileName ?? "";
+                                }
+                                catch { }
+
+                                string category = "Desktop 1";
+                                try
+                                {
+                                    var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
+                                    if (!screen.Primary)
+                                    {
+                                        int index = 2;
+                                        var screens = System.Windows.Forms.Screen.AllScreens;
+                                        for (int i = 0; i < screens.Length; i++) {
+                                            if (screens[i].DeviceName == screen.DeviceName) {
+                                                index = i + 1; break;
+                                            }
+                                        }
+                                        category = $"Desktop {index}";
+                                    }
+                                }
+                                catch { }
+
+                                apps.Add(new Models.AppItem { 
+                                    Name = title, 
+                                    Path = path,
+                                    Handle = hWnd.ToString(),
+                                    Category = category,
+                                    IconBase64 = GetIconBase64(path),
+                                    IsForeground = (hWnd == fgHwnd)
+                                });
+                            }
+                        }
+                    }
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch { }
+            return apps.GroupBy(a => a.Handle).Select(g => g.First()).ToList();
+        }
+
+        public static void CloseApp(string handleStr)
+        {
+            try
+            {
+                if (IntPtr.TryParse(handleStr, out IntPtr hWnd))
+                {
+                    SendMessage(hWnd, 0x0112, (IntPtr)0xF060, IntPtr.Zero); // WM_SYSCOMMAND SC_CLOSE
+                    PostMessage(hWnd, 0x0010, IntPtr.Zero, IntPtr.Zero); // WM_CLOSE
+
+                    // Fallback to Kill
+                    GetWindowThreadProcessId(hWnd, out uint processId);
+                    if (processId > 0)
+                    {
+                        try
+                        {
+                            var proc = System.Diagnostics.Process.GetProcessById((int)processId);
+                            if (!proc.HasExited && proc.MainWindowHandle == hWnd)
+                                proc.Kill();
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        public static void FocusApp(string handleStr)
+        {
+            try
+            {
+                if (IntPtr.TryParse(handleStr, out IntPtr hWnd))
+                {
+                    if (IsIconic(hWnd)) ShowWindow(hWnd, 9); // SW_RESTORE
+                    SetForegroundWindow(hWnd);
+                    SwitchToThisWindow(hWnd, true);
+                }
+            }
+            catch { }
+        }
+
 
         // ─── Volume ───
         public static void SetVolume(int level)
@@ -104,50 +374,60 @@ namespace NexLink.Services
             }
         }
 
-        // ─── WiFi Info (real SSID via netsh) ───
+        // ─── Network Info (Wi-Fi or Ethernet) ───
         public static (string ssid, int strength, bool connected) GetWifiInfo()
         {
             try
             {
-                var psi = new System.Diagnostics.ProcessStartInfo
+                // 1. Try getting the network profile name via WMI (detects Ethernet and Wi-Fi)
+                try
                 {
-                    FileName               = "netsh",
-                    Arguments              = "wlan show interfaces",
-                    RedirectStandardOutput = true,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true,
-                    StandardOutputEncoding = System.Text.Encoding.UTF8,
-                };
-                using var proc = System.Diagnostics.Process.Start(psi)!;
-                string output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit();
+                    var searcher = new System.Management.ManagementObjectSearcher(
+                        "root\\StandardCimv2", "SELECT Name, InterfaceAlias FROM MSFT_NetConnectionProfile WHERE IPv4Connectivity = 4 OR IPv6Connectivity = 4");
+                    foreach (System.Management.ManagementObject obj in searcher.Get())
+                    {
+                        var alias = obj["InterfaceAlias"]?.ToString() ?? "";
+                        var name = obj["Name"]?.ToString() ?? "";
+                        if (alias.Contains("Ethernet"))
+                        {
+                            return (name == "Network" ? "Ethernet" : $"Ethernet ({name})", 100, true);
+                        }
+                        if (alias.Contains("Wi-Fi") || alias.Contains("Wireless"))
+                        {
+                            return (name, 100, true);
+                        }
+                    }
+                }
+                catch { /* Ignore */ }
 
-                Console.WriteLine($"[GetWifiInfo] netsh output length: {output.Length}");
-
-                // Multiline regex: match SSID line that is NOT BSSID
-                var ssidMatch = System.Text.RegularExpressions.Regex.Match(
-                    output, @"^\s+SSID\s*:\s*(.+)$",
-                    System.Text.RegularExpressions.RegexOptions.Multiline);
-
-                var sigMatch = System.Text.RegularExpressions.Regex.Match(
-                    output, @"Signal\s*:\s*(\d+)%",
-                    System.Text.RegularExpressions.RegexOptions.Multiline);
-
-                if (ssidMatch.Success)
+                // 2. Try getting the connected SSID using ManagedNativeWifi
+                try
                 {
-                    string ssid = ssidMatch.Groups[1].Value.Trim();
-                    int.TryParse(sigMatch.Groups[1].Value.Trim(), out int quality);
-                    Console.WriteLine($"[GetWifiInfo] SSID='{ssid}' Signal={quality}%");
-                    return (ssid, quality, true);
+                    var connectedSsid = ManagedNativeWifi.NativeWifi.EnumerateConnectedNetworkSsids().FirstOrDefault();
+                    if (connectedSsid != null)
+                        return (connectedSsid.ToString(), 100, true);
+                }
+                catch { /* Ignore exception, fallback to NetworkInterface check */ }
+
+                // Fallback 2: check if we have any active wireless interface
+                bool hasWifi = false;
+                foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 &&
+                        nic.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up)
+                    {
+                        hasWifi = true;
+                        break;
+                    }
                 }
 
-                if (output.Contains("There is no wireless interface"))
+                if (hasWifi)
                 {
-                    Console.WriteLine("[GetWifiInfo] No wireless interface");
-                    return ("No WiFi adapter", 0, false);
+                    Console.WriteLine("[GetWifiInfo] Connected (SSID hidden due to permissions)");
+                    return ("Connected", 100, true);
                 }
 
-                Console.WriteLine("[GetWifiInfo] Not connected to any network");
+                Console.WriteLine("[GetWifiInfo] Not connected to any wireless network");
                 return ("Not connected", 0, false);
             }
             catch (Exception ex)
@@ -163,15 +443,29 @@ namespace NexLink.Services
             var devices = new List<object>();
             try
             {
-                // First try connected Bluetooth audio/input devices
+                // Try connected Bluetooth audio/input devices
                 var searcher = new System.Management.ManagementObjectSearcher(
                     "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth' OR PNPClass = 'BTHLEDevice'");
                 foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
-                    var name   = obj["Name"]?.ToString();
+                    var name   = obj["Name"]?.ToString() ?? "";
                     var status = obj["Status"]?.ToString();
-                    if (!string.IsNullOrEmpty(name) && status == "OK")
-                        devices.Add(new { name = name, address = "Unknown", type = "Bluetooth", connected = true });
+                    
+                    // Filter out generic Microsoft/Windows system drivers and services
+                    string lower = name.ToLower();
+                    if (string.IsNullOrEmpty(name) || status != "OK" ||
+                        lower.Contains("generic attribute") ||
+                        lower.Contains("enumerator") ||
+                        lower.Contains("bluetooth radio") ||
+                        lower.Contains("bluetooth device (") ||
+                        lower.Contains("avrcp transport") ||
+                        lower.EndsWith("service") ||
+                        lower.EndsWith("profile") ||
+                        lower.Contains("adapter") ||
+                        lower == "bluetooth")
+                        continue;
+
+                    devices.Add(new { name = name, address = "Unknown", type = "Bluetooth", connected = true });
                 }
             }
             catch { }
@@ -368,19 +662,32 @@ namespace NexLink.Services
             var apps = new List<Models.AppItem>
             {
                 new() { Name = "File Manager",         Path = "explorer.exe" },
-                new() { Name = "Google Chrome",        Path = @"C:\Program Files\Google\Chrome\Application\chrome.exe" },
-                new() { Name = "Brave Browser",        Path = @"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" },
-                new() { Name = "Spotify",              Path = @"C:\Users\" + Environment.UserName + @"\AppData\Roaming\Spotify\Spotify.exe" },
-                new() { Name = "VLC Media Player",     Path = @"C:\Program Files\VideoLAN\VLC\vlc.exe" },
-                new() { Name = "Notepad",              Path = "notepad.exe" },
-                new() { Name = "Calculator",           Path = "calc.exe" },
-                new() { Name = "Settings",             Path = "ms-settings:" },
-                new() { Name = "Microsoft Edge",       Path = "msedge.exe" },
-                new() { Name = "Visual Studio Code",   Path = @"C:\Users\" + Environment.UserName + @"\AppData\Local\Programs\Microsoft VS Code\Code.exe" },
-                new() { Name = "Task Manager",         Path = "taskmgr.exe" },
-                new() { Name = "Paint",                Path = "mspaint.exe" },
-                new() { Name = "WhatsApp",             Path = @"C:\Users\" + Environment.UserName + @"\AppData\Local\WhatsApp\WhatsApp.exe" },
+                new() { Name = "Settings",             Path = "ms-settings:" }
             };
+
+            try
+            {
+                string[] paths = {
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+                    Environment.GetFolderPath(Environment.SpecialFolder.Programs)
+                };
+                foreach (var path in paths)
+                {
+                    if (Directory.Exists(path))
+                    {
+                        foreach (var file in Directory.GetFiles(path, "*.lnk", SearchOption.AllDirectories))
+                        {
+                            string name = Path.GetFileNameWithoutExtension(file);
+                            if (!apps.Any(a => string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                apps.Add(new Models.AppItem { Name = name, Path = file });
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
             var result = new List<Models.AppItem>();
             foreach (var app in apps)
                 if (app.Path.StartsWith("ms-") || File.Exists(app.Path) || !app.Path.Contains("\\"))
@@ -443,7 +750,7 @@ namespace NexLink.Services
                     {
                         if ((dir.Attributes & FileAttributes.Hidden) != 0) continue;
                         if ((dir.Attributes & FileAttributes.System) != 0) continue;
-                        items.Add(new Models.FileItem { Name = dir.Name, Path = dir.FullName, IsDirectory = true, Type = "folder" });
+                        items.Add(new Models.FileItem { Name = dir.Name, Path = dir.FullName, IsDirectory = true, Type = "folder", LastModified = ((DateTimeOffset)dir.LastWriteTime).ToUnixTimeMilliseconds() });
                     }
                     catch { }
                 }
@@ -464,7 +771,8 @@ namespace NexLink.Services
                             Size        = fi.Length,
                             IsDirectory = false,
                             Type        = fi.Extension.TrimStart('.').ToLowerInvariant(),
-                            ThumbnailBase64 = thumbB64
+                            ThumbnailBase64 = thumbB64,
+                            LastModified = ((DateTimeOffset)fi.LastWriteTime).ToUnixTimeMilliseconds()
                         });
                     }
                     catch { }
@@ -598,6 +906,106 @@ namespace NexLink.Services
                 }
             }
             catch { }
+        }
+
+        public static bool RenameFile(string path, string newName)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    string dir = Path.GetDirectoryName(path) ?? "";
+                    string newPath = Path.Combine(dir, newName);
+                    File.Move(path, newPath);
+                    return true;
+                }
+                else if (Directory.Exists(path))
+                {
+                    string dir = Path.GetDirectoryName(path) ?? "";
+                    string newPath = Path.Combine(dir, newName);
+                    Directory.Move(path, newPath);
+                    return true;
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        public static bool CreateFolder(string basePath, string folderName)
+        {
+            try
+            {
+                string path = Path.Combine(basePath, folderName);
+                Directory.CreateDirectory(path);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool CreateFile(string basePath, string fileName)
+        {
+            try
+            {
+                string path = Path.Combine(basePath, fileName);
+                File.Create(path).Dispose();
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool DeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+                else if (Directory.Exists(path)) Directory.Delete(path, true);
+                else return false;
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool CopyFile(string source, string destDir)
+        {
+            try
+            {
+                string name = Path.GetFileName(source);
+                string dest = Path.Combine(destDir, name);
+                if (File.Exists(source))
+                {
+                    File.Copy(source, dest, true);
+                    return true;
+                }
+                else if (Directory.Exists(source))
+                {
+                    // Simple recursive copy or just throw not implemented for folders
+                    // To keep it simple, skip directory copy or implement it. Let's do a simple file only copy.
+                    return false;
+                }
+                return false;
+            }
+            catch { return false; }
+        }
+
+        public static bool MoveFile(string source, string destDir)
+        {
+            try
+            {
+                string name = Path.GetFileName(source);
+                string dest = Path.Combine(destDir, name);
+                if (File.Exists(source))
+                {
+                    File.Move(source, dest);
+                    return true;
+                }
+                else if (Directory.Exists(source))
+                {
+                    Directory.Move(source, dest);
+                    return true;
+                }
+                return false;
+            }
+            catch { return false; }
         }
 
         private static ImageCodecInfo GetJpegEncoder()

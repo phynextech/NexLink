@@ -8,6 +8,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,7 +30,8 @@ fun HomeScreen(
     onNavigateToAppLauncher: () -> Unit,
     onNavigateToClipboard: () -> Unit,
     onNavigateToCameraScreen: () -> Unit,
-    onNavigateToFileBrowser: () -> Unit
+    onNavigateToFileBrowser: () -> Unit,
+    onNavigateToTrackpad: () -> Unit
 ) {
     val isConnected by viewModel.isConnected.collectAsState()
     val deviceInfo by viewModel.connectedDevice.collectAsState()
@@ -87,10 +89,19 @@ fun HomeScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("NexLink", style = MaterialTheme.typography.headlineLarge, color = primary, fontWeight = FontWeight.Black)
                     }
+                    var showSettingsDialog by remember { mutableStateOf(false) }
+
                     Box(
-                        Modifier.size(40.dp).clip(CircleShape).border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
+                        Modifier.size(40.dp)
+                            .clip(CircleShape)
+                            .border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
+                            .clickable { showSettingsDialog = true }
                     ) {
                         Icon(Icons.Default.Person, null, tint = primary, modifier = Modifier.align(Alignment.Center))
+                    }
+                    
+                    if (showSettingsDialog) {
+                        SettingsDialog(viewModel = viewModel, onDismiss = { showSettingsDialog = false })
                     }
                 }
 
@@ -112,37 +123,26 @@ fun HomeScreen(
 
                 Spacer(Modifier.height(24.dp))
 
-                // WiFi + BT Pills
+                // Connection Status Pill
+                val connectionStateText = when {
+                    isConnected -> "Connected"
+                    wifiInfo?.connected == true -> "Waiting for pairing..."
+                    else -> "Server error or Offline"
+                }
+                val connectionStateColor = when {
+                    isConnected -> GreenLight
+                    wifiInfo?.connected == true -> OrangeWarning
+                    else -> RedDisconnected
+                }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                     Row(
                         Modifier.glassCard(RoundedCornerShape(50.dp)).padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            if (wifiInfo?.connected == true) Icons.Default.Wifi else Icons.Default.WifiOff,
-                            null, tint = if (wifiInfo?.connected == true) primary else outline,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(connectionStateColor))
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            when {
-                                wifiInfo?.connected == true -> wifiInfo?.ssid ?: "Connected"
-                                wifiInfo != null -> "Not Connected"
-                                else -> "—"
-                            },
-                            style = MaterialTheme.typography.labelMedium, color = onBackground
-                        )
-                        Spacer(Modifier.width(16.dp))
-                        Box(Modifier.size(4.dp).clip(CircleShape).background(outlineVariant))
-                        Spacer(Modifier.width(16.dp))
-                        Icon(
-                            Icons.Default.Bluetooth, null,
-                            tint = if (bluetoothEnabled) primary else outline,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            bluetoothDevices.firstOrNull()?.name ?: if (bluetoothEnabled) "On" else "Off",
+                            connectionStateText,
                             style = MaterialTheme.typography.labelMedium, color = onBackground
                         )
                     }
@@ -218,11 +218,37 @@ fun HomeScreen(
                         )
                     }
 
+                    var showBluetoothDialog by remember { mutableStateOf(false) }
+
                     StatusItem(
                         if (bluetoothEnabled) Icons.Default.Bluetooth else Icons.Default.BluetoothDisabled,
-                        bluetoothDevices.firstOrNull()?.name ?: if (bluetoothEnabled) "On" else "Off"
+                        when {
+                            !bluetoothEnabled -> "Off"
+                            bluetoothDevices.isEmpty() -> "On"
+                            bluetoothDevices.size == 1 -> bluetoothDevices.first().name
+                            else -> "${bluetoothDevices.size} devices"
+                        },
+                        onClick = { if (bluetoothDevices.isNotEmpty()) showBluetoothDialog = true }
                     )
-                    StatusItem(Icons.Default.VolumeUp, if (volume > 0) "${volume}%" else "—")
+
+                    if (showBluetoothDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showBluetoothDialog = false },
+                            containerColor = Color(0xFF1A1A2E),
+                            title = { Text("Connected Bluetooth Devices", color = Color.White) },
+                            text = {
+                                Column(Modifier.fillMaxWidth()) {
+                                    bluetoothDevices.forEach { dev ->
+                                        Text("• ${dev.name}", color = onBackground, modifier = Modifier.padding(vertical = 4.dp))
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showBluetoothDialog = false }) { Text("OK", color = primary) }
+                            }
+                        )
+                    }
+                    StatusItem(Icons.AutoMirrored.Filled.VolumeUp, if (volume > 0) "${volume}%" else "—")
                 }
 
                 Spacer(Modifier.height(24.dp))
@@ -230,7 +256,7 @@ fun HomeScreen(
                 // Volume & Brightness sliders
                 // Volume
                 VolumeBrightnessControl(
-                    icon = if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeDown,
+                    icon = if (muted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeDown,
                     label = if (muted) "Master Volume (Muted)" else "Master Volume",
                     value = volume
                 ) { viewModel.sendVolume(it) }
@@ -250,6 +276,7 @@ fun HomeScreen(
                     QuickAction(Icons.Default.MusicNote, "Music", onNavigateToMusic)
                     QuickAction(Icons.Default.PhotoCamera, "Camera", onNavigateToCameraScreen)
                     QuickAction(Icons.Default.ContentPaste, "Clip", onNavigateToClipboard)
+                    QuickAction(Icons.Default.Mouse, "Mouse", onNavigateToTrackpad)
                     QuickAction(Icons.Default.MoreHoriz, "More", onNavigateToAppLauncher)
                 }
 
@@ -286,8 +313,11 @@ fun HomeScreen(
 }
 
 @Composable
-fun StatusItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+fun StatusItem(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, onClick: (() -> Unit)? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick).padding(4.dp) else Modifier.padding(4.dp)
+    ) {
         Icon(icon, null, tint = primary, modifier = Modifier.size(20.dp))
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.labelSmall, color = onBackground.copy(0.8f), fontWeight = FontWeight.Bold, maxLines = 1)
@@ -383,4 +413,59 @@ fun BottomNavItem(
         Spacer(Modifier.height(4.dp))
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = if (selected) primary else outline)
     }
+}
+
+@Composable
+fun SettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
+    val themeMode by viewModel.themeMode.collectAsState()
+    val primaryColor by viewModel.primaryColor.collectAsState()
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("Settings", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                Text("Theme", style = MaterialTheme.typography.titleMedium, color = primary)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    listOf("System", "Light", "Dark").forEach { mode ->
+                        Button(
+                            onClick = { viewModel.setThemeMode(mode) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (themeMode == mode) primary else MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = if (themeMode == mode) onPrimary else MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                        ) {
+                            Text(mode, maxLines = 1)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Accent Color", style = MaterialTheme.typography.titleMedium, color = primary)
+                Spacer(Modifier.height(8.dp))
+                val colors = listOf("Monochrome", "Green", "Pink", "Lavender", "Orange", "Blue", "Red")
+                colors.chunked(3).forEach { rowColors ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                        rowColors.forEach { color ->
+                            Button(
+                                onClick = { viewModel.setPrimaryColor(color) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (primaryColor == color) primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (primaryColor == color) onPrimary else MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                            ) {
+                                Text(color, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = primary) }
+        }
+    )
 }

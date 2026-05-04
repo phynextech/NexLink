@@ -40,7 +40,19 @@ data class NowPlaying(
 data class AppItem(
     val name: String,
     val path: String,
-    val iconBase64: String? = null
+    val iconBase64: String? = null,
+    val category: String = "",
+    val handle: String = "",
+    val isForeground: Boolean = false
+)
+
+data class PerformanceMetrics(
+    val cpu: Int = -1,
+    val gpu: Int = -1,
+    val ram: Int = -1,
+    val vram: Int = -1,
+    val fps: Int = -1,
+    val wifi: Int = -1
 )
 
 data class FileItem(
@@ -49,7 +61,8 @@ data class FileItem(
     val size: Long,
     val isDirectory: Boolean,
     val type: String,
-    val thumbnailBase64: String? = null
+    val thumbnailBase64: String? = null,
+    val lastModified: Long = 0L
 )
 
 data class ClipboardItem(
@@ -65,7 +78,8 @@ data class SmsThread(
     val contactNumber: String,
     val lastMessage: String,
     val timestamp: Long,
-    val unread: Int
+    val unread: Int,
+    val messages: List<SmsMessage> = emptyList()
 )
 
 data class SmsMessage(
@@ -86,7 +100,28 @@ data class PhotoItem(
     val name: String,
     val path: String,
     val thumbnailBase64: String?,
-    val timestamp: Long
+    val timestamp: Long,
+    val album: String = "Camera"   // "Camera", "WhatsApp Images", "Screenshots", "Download"
+)
+
+/** Groups photos by album folder for display in Windows Photos tab */
+data class PhotoAlbum(
+    val name: String,               // "Camera", "WhatsApp Images", "Screenshots", "Download"
+    val coverThumbnail: String?,    // base64 of first photo thumbnail
+    val photoCount: Int,
+    val photos: List<PhotoItem> = emptyList()
+)
+
+/**
+ * Live Android device status pushed to Windows in real-time.
+ * ringerMode: 0=Silent, 1=Vibrate, 2=Normal
+ */
+data class MobileStatus(
+    val ringerMode: Int = 2,        // AudioManager.RINGER_MODE_NORMAL
+    val phoneVolume: Int = 50,      // 0-100 (media stream percentage)
+    val ringerVolume: Int = 50,     // 0-100 (ringer stream percentage)
+    val notifCount: Int = 0,        // active notification count
+    val isDoNotDisturb: Boolean = false
 )
 
 enum class ConnectionState {
@@ -104,5 +139,6 @@ enum class Screen(val route: String) {
     APP_LAUNCHER("app_launcher"),
     FILE_BROWSER("file_browser"),
     CLIPBOARD("clipboard"),
-    CAMERA_SCREEN("camera_screen")
+    CAMERA_SCREEN("camera_screen"),
+    TRACKPAD("trackpad")
 }

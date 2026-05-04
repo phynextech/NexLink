@@ -9,22 +9,22 @@
         <helpers:BoolToColorConverter         x:Key="BoolToColor"/>
         <helpers:NonZeroToVisibilityConverter x:Key="NonZeroVisibility"/>
         <helpers:BoolToVisibilityConverter    x:Key="BoolToVisibility"/>
-        <!-- Color Palette (NexLink Cyber-Premium) -->
-        <SolidColorBrush x:Key="BackgroundDark"     Color="#0A0E1A"/>
-        <SolidColorBrush x:Key="BackgroundCard"     Color="#12182B"/>
-        <SolidColorBrush x:Key="BackgroundElevated" Color="#1A2238"/>
-        <SolidColorBrush x:Key="SurfaceVariant"     Color="#232D4A"/>
-        <SolidColorBrush x:Key="BluePrimary"        Color="#00E5FF"/>
-        <SolidColorBrush x:Key="BlueLight"          Color="#80F2FF"/>
-        <SolidColorBrush x:Key="BlueAccent"         Color="#00B8D4"/>
+        <!-- Color Palette (NexLink Monochrome) -->
+        <SolidColorBrush x:Key="BackgroundDark"     Color="#000000"/>
+        <SolidColorBrush x:Key="BackgroundCard"     Color="#0F0F0F"/>
+        <SolidColorBrush x:Key="BackgroundElevated" Color="#1A1A1A"/>
+        <SolidColorBrush x:Key="SurfaceVariant"     Color="#2A2A2A"/>
+        <SolidColorBrush x:Key="BluePrimary"        Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="BlueLight"          Color="#F5F5F5"/>
+        <SolidColorBrush x:Key="BlueAccent"         Color="#E0E0E0"/>
         <SolidColorBrush x:Key="GreenConnected"     Color="#00E676"/>
         <SolidColorBrush x:Key="RedDisconnected"    Color="#FF1744"/>
         <SolidColorBrush x:Key="OrangeWarning"      Color="#FF9100"/>
-        <SolidColorBrush x:Key="TextPrimary"        Color="#F5F9FF"/>
-        <SolidColorBrush x:Key="TextSecondary"      Color="#A0ABC0"/>
-        <SolidColorBrush x:Key="TextMuted"          Color="#6B7A99"/>
-        <SolidColorBrush x:Key="BorderSubtle"       Color="#252F4A"/>
-        <SolidColorBrush x:Key="BorderDefault"      Color="#334166"/>
+        <SolidColorBrush x:Key="TextPrimary"        Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondary"      Color="#AAAAAA"/>
+        <SolidColorBrush x:Key="TextMuted"          Color="#666666"/>
+        <SolidColorBrush x:Key="BorderSubtle"       Color="#333333"/>
+        <SolidColorBrush x:Key="BorderDefault"      Color="#555555"/>
 
         <!-- Global TextBlock style -->
         <Style TargetType="TextBlock">
@@ -51,10 +51,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#80F2FF"/>
+                                <Setter Property="Background" Value="#F5F5F5"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#00B8D4"/>
+                                <Setter Property="Background" Value="#E0E0E0"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -77,7 +77,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#21262D"/>
+                                <Setter Property="Background" Value="#1A1A1A"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

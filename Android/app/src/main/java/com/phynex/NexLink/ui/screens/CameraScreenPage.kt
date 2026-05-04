@@ -44,6 +44,29 @@ fun CameraScreenPage(viewModel: MainViewModel, onBack: () -> Unit) {
         }
     }
 
+    var showMicDialog by remember { mutableStateOf(false) }
+
+    if (showMicDialog) {
+        AlertDialog(
+            onDismissRequest = { showMicDialog = false },
+            containerColor = Color(0xFF1A1A2E),
+            title = { Text("Enable Microphone?", color = Color.White) },
+            text = { Text("Do you want to turn on the laptop's microphone and listen to the audio?", color = onBackground) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMicDialog = false
+                    viewModel.startCameraStream(enableMic = true)
+                }) { Text("Yes", color = primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showMicDialog = false
+                    viewModel.startCameraStream(enableMic = false)
+                }) { Text("No", color = Color.Gray) }
+            }
+        )
+    }
+
     // Auto-stop streaming on exit
     DisposableEffect(Unit) {
         onDispose {
@@ -200,7 +223,7 @@ fun CameraScreenPage(viewModel: MainViewModel, onBack: () -> Unit) {
                         onClick = {
                             if (!isConnected) return@Button
                             if (activeTab == 0) viewModel.startScreenStream()
-                            else viewModel.startCameraStream()
+                            else showMicDialog = true
                         },
                         modifier = Modifier.weight(1f).height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primary),
