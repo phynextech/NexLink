@@ -39,6 +39,10 @@ const RELAY_EVENTS = [
   'request_photos',         // Windows asks Android to send photo list
   'request_photo_thumbnail',// Windows asks Android for a specific photo thumbnail
   'get_thread',             // Windows requests full messages of a thread
+  'start_mobile_camera', 'stop_mobile_camera', 'switch_mobile_camera',
+  'mobile_camera_frame',
+  'start_mobile_screen', 'stop_mobile_screen',
+  'mobile_screen_frame',
 
   // ── Notifications snapshot ─────────────────────────────────────────────
   'notification_list',      // bulk notification list on connect
