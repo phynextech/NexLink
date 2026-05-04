@@ -1,0 +1,28 @@
+<Window x:Class="NexLink.StreamWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NexLink Remote Stream" Height="600" Width="400"
+        Background="#0A0A0F" WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Background="#1A1A2E" Padding="16">
+            <TextBlock x:Name="HeaderTxt" Text="Remote Stream" Foreground="White" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center"/>
+        </Border>
+
+        <!-- Stream Viewer -->
+        <Image x:Name="StreamImage" Grid.Row="1" Stretch="Uniform" Margin="10"/>
+
+        <!-- Controls -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+            <Button x:Name="StartBtn" Content="Start Stream" Width="120" Height="40" Background="#00C853" Foreground="White" FontWeight="Bold" Click="StartBtn_Click"/>
+            <Button x:Name="SwitchCamBtn" Content="Switch Camera" Width="120" Height="40" Margin="10,0,0,0" Background="#1E88E5" Foreground="White" Visibility="Collapsed" Click="SwitchCamBtn_Click"/>
+            <Button x:Name="StopBtn" Content="Stop Stream" Width="120" Height="40" Margin="10,0,0,0" Background="#EF5350" Foreground="White" FontWeight="Bold" Click="StopBtn_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

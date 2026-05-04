@@ -35,14 +35,19 @@ const RELAY_EVENTS = [
   'open_camera',            // open CameraX inside NexLink (back/front, no popup)
   'ringer_mode',            // set ringer mode 0=Silent 1=Vibrate 2=Ring
   'mobile_volume',          // set phone speaker volume (0-100)
+  'mobile_ringer_volume',   // set phone ringer volume (0-100)
+  'start_mobile_camera',    // PC requests Android camera
+  'stop_mobile_camera',     // PC requests Android camera stop
+  'mobile_camera_frame',    // Android sends camera frame to PC
+  'start_mobile_screen',    // PC requests Android screen
+  'stop_mobile_screen',     // PC requests Android screen stop
+  'mobile_screen_frame',    // Android sends screen frame to PC
+  'screen_share_start',     // start screen sharing session
+  'screen_share_stop',      // stop screen sharing session
   'request_mobile_sms',     // Windows asks Android to send sms list
   'request_photos',         // Windows asks Android to send photo list
   'request_photo_thumbnail',// Windows asks Android for a specific photo thumbnail
   'get_thread',             // Windows requests full messages of a thread
-  'start_mobile_camera', 'stop_mobile_camera', 'switch_mobile_camera',
-  'mobile_camera_frame',
-  'start_mobile_screen', 'stop_mobile_screen',
-  'mobile_screen_frame',
 
   // ── Notifications snapshot ─────────────────────────────────────────────
   'notification_list',      // bulk notification list on connect

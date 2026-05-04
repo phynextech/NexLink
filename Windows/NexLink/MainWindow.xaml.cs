@@ -263,6 +263,13 @@ namespace NexLink
                             MobileVolumeLabel.Text    = $"{phoneVol}%";
                             MobileRingerVolLabel.Text = $"{ringerVol}%";
                             MobileNotifCountLabel.Text = notifCount.ToString();
+                            
+                            // Only update slider if user isn't currently dragging it
+                            if (!MobileMediaVolSlider.IsMouseCaptureWithin)
+                                MobileMediaVolSlider.Value = phoneVol;
+                            if (!MobileRingerVolSlider.IsMouseCaptureWithin)
+                                MobileRingerVolSlider.Value = ringerVol;
+
                             // Highlight the active ringer button
                             RingerSilentBtn.Opacity  = ringerMode == 0 ? 1.0 : 0.4;
                             RingerVibrateBtn.Opacity = ringerMode == 1 ? 1.0 : 0.4;
@@ -1130,6 +1137,37 @@ namespace NexLink
 
         private void RingerRing_Click(object sender, RoutedEventArgs e)
             => _vm.WsService.Send(new { type = "ringer_mode", mode = 2 });
+
+        // ─── Remote Volume (Windows → Android) ───
+        private void MobileMediaVol_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            var slider = sender as Slider;
+            if (slider != null)
+                _vm.WsService.Send(new { type = "mobile_volume", level = (int)slider.Value });
+        }
+
+        private void MobileRingerVol_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            var slider = sender as Slider;
+            if (slider != null)
+                _vm.WsService.Send(new { type = "mobile_ringer_volume", level = (int)slider.Value });
+        }
+
+        // ─── Remote Overrides ───
+        private void LockBtn_Click(object sender, RoutedEventArgs e)
+            => _vm.WsService.Send(new { type = "lock_phone" });
+
+        private void CameraBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new StreamWindow(_vm, "camera");
+            win.Show();
+        }
+
+        private void ScreenShareBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new StreamWindow(_vm, "screen");
+            win.Show();
+        }
     }
 
     // Clipboard data item for the list

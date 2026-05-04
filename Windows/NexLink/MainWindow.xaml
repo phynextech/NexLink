@@ -321,6 +321,7 @@
                                                 <TextBlock Text="🔊 Media Vol" Foreground="#DFDFDF"/>
                                                 <TextBlock x:Name="MobileVolumeLabel" Grid.Column="1" Text="—%" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
                                             </Grid>
+                                            <Slider x:Name="MobileMediaVolSlider" Minimum="0" Maximum="100" Margin="0,0,0,12" PreviewMouseUp="MobileMediaVol_MouseUp" />
                                             <!-- Ringer Volume -->
                                             <Grid Margin="0,6">
                                                 <Grid.ColumnDefinitions>
@@ -330,6 +331,7 @@
                                                 <TextBlock Text="🔔 Ringer Vol" Foreground="#DFDFDF"/>
                                                 <TextBlock x:Name="MobileRingerVolLabel" Grid.Column="1" Text="—%" Foreground="#FFFFFF" FontFamily="JetBrains Mono" FontSize="12"/>
                                             </Grid>
+                                            <Slider x:Name="MobileRingerVolSlider" Minimum="0" Maximum="100" Margin="0,0,0,12" PreviewMouseUp="MobileRingerVol_MouseUp" />
                                             <!-- Active Notifications -->
                                             <Grid Margin="0,6">
                                                 <Grid.ColumnDefinitions>
@@ -359,6 +361,11 @@
                                     <Border Style="{StaticResource GlassCard}" Padding="24" Margin="0,0,0,16">
                                         <StackPanel>
                                             <TextBlock Text="REMOTE OVERRIDES" FontFamily="Rajdhani" FontSize="12" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,16"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                                                <Button x:Name="LockBtn" Content="🔒 Lock Screen" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Width="100" Click="LockBtn_Click"/>
+                                                <Button x:Name="CameraBtn" Content="📷 Camera" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Width="90" Click="CameraBtn_Click"/>
+                                                <Button x:Name="ScreenShareBtn" Content="🖥️ Share" Style="{StaticResource PrimaryButton}" Width="85" Click="ScreenShareBtn_Click"/>
+                                            </StackPanel>
                                             <Button x:Name="MuteBtn" Content="Mute Audio" Style="{StaticResource PrimaryButton}" Click="MuteBtn_Click" Margin="0,0,0,12"/>
                                             <Border Background="#0DFFFFFF" CornerRadius="8" Padding="16">
                                                 <StackPanel>

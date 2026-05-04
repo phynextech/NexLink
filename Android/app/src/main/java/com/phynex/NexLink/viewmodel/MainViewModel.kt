@@ -803,6 +803,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // ── Windows → Android: set phone ringer volume ─────────────────────
+        socketClient.addListener("mobile_ringer_volume") { json ->
+            val level = json.safeInt("level", 50)
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                try {
+                    val am = getApplication<Application>().getSystemService(
+                        android.content.Context.AUDIO_SERVICE) as AudioManager
+                    val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_RING)
+                    val targetVol = (level * maxVol / 100.0).toInt().coerceIn(0, maxVol)
+                    am.setStreamVolume(AudioManager.STREAM_RING, targetVol,
+                        AudioManager.FLAG_SHOW_UI)
+                    _mobileStatus.value = _mobileStatus.value.copy(ringerVolume = level)
+                    sendMobileStatus()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to set mobile ringer volume: ${e.message}")
+                }
+            }
+        }
+
         // ── Windows → Android: request current mobile status snapshot ─────
         socketClient.addListener("request_info") { _ ->
             sendMobileStatus()
@@ -937,7 +956,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             var ssid = ""
             if (wifiOn) {
                 val wm = context.applicationContext.getSystemService(android.content.Context.WIFI_SERVICE) as android.net.wifi.WifiManager
-                ssid = wm.connectionInfo?.ssid?.replace("\"", "") ?: "Connected"
+                ssid = wm.connectionInfo?.ssid?.replace("\"", "") ?: ""
+                if (ssid.isBlank() || ssid == "<unknown ssid>") {
+                    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+                    val gpsEnabled = lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+                    ssid = if (!gpsEnabled) "Location Off (Enable for WiFi Name)" else "Connected"
+                }
             }
             socketClient.sendMessage(mapOf("type" to "wifi_info", "enabled" to wifiOn, "ssid" to ssid, "connected" to wifiOn))
             Log.d(TAG, "Sent wifi_info: $ssid")

@@ -75,6 +75,23 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Notification Access
+        val nlsEnabled = android.provider.Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
+        if (nlsEnabled == null || !nlsEnabled.contains(packageName)) {
+            android.widget.Toast.makeText(this, "Please enable Notification Access for NexLink to sync notifications", android.widget.Toast.LENGTH_LONG).show()
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+        }
+
+        // Device Admin
+        val dpm = getSystemService(android.content.Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+        val adminComponent = android.content.ComponentName(this, com.phynex.NexLink.service.AdminReceiver::class.java)
+        if (!dpm.isAdminActive(adminComponent)) {
+            val intent = android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Please enable Device Admin to allow screen locking from Windows.")
+            startActivity(intent)
+        }
+
         // Register clipboard listener
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboardManager?.addPrimaryClipChangedListener {
