@@ -39,3 +39,16 @@ server.listen(PORT, () => {
   logger.info(`   Socket.IO:  wss://nexlink-khhe.onrender.com`);
   logger.info(`   Health:     https://nexlink-khhe.onrender.com/health`);
 });
+
+// ── Keep-alive: prevent Render free tier from spinning down ──────────────────
+// Render spins down after 15 min of inactivity. Ping every 13 min to stay warm.
+// RENDER_EXTERNAL_URL is automatically set by Render's environment.
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+setInterval(async () => {
+  try {
+    const res = await fetch(`${SELF_URL}/health`);
+    logger.debug(`[Keep-alive] /health ping → ${res.status}`);
+  } catch (e) {
+    logger.warn(`[Keep-alive] Self-ping failed: ${e.message}`);
+  }
+}, 13 * 60 * 1000); // every 13 minutes
