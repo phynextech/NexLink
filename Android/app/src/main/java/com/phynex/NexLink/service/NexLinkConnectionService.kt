@@ -62,25 +62,19 @@ class NexLinkConnectionService : Service() {
 
         registerNetworkCallback()
         
+        // Wait for the ViewModel to be created (it lives in the Activity), then
+        // observe the connection state to keep the notification up-to-date.
+        // Use a one-shot coroutine; once the VM is available we switch to `collect`.
         scope.launch {
-            while (true) {
-                val vm = MainViewModel.instance
-                if (vm != null) {
-                    vm.isConnected.collect { isConnected ->
-                        if (isConnected) {
-                            updateNotification("Connected")
-                        } else {
-                            val wifiConnected = vm.wifiInfo.value?.connected == true
-                            if (wifiConnected) {
-                                updateNotification("Waiting for pairing...")
-                            } else {
-                                updateNotification("Server error or Offline")
-                            }
-                        }
-                    }
-                    break
-                }
+            // Poll until MainViewModel is available (Activity hasn't started yet)
+            var vm = MainViewModel.instance
+            while (vm == null) {
                 delay(500)
+                vm = MainViewModel.instance
+            }
+            // Now permanently observe connection state
+            vm.isConnected.collect { isConnected ->
+                updateNotification(if (isConnected) "Connected" else "Disconnected")
             }
         }
         
@@ -116,7 +110,7 @@ class NexLinkConnectionService : Service() {
                 Log.d(TAG, "Network available - triggering reconnect")
                 val isConnected = MainViewModel.instance?.isConnected?.value == true
                 if (!isConnected) {
-                    updateNotification("Waiting for pairing...")
+                    updateNotification("Disconnected")
                 }
                 // Give network a moment to fully initialize
                 scope.launch {
@@ -127,7 +121,7 @@ class NexLinkConnectionService : Service() {
 
             override fun onLost(network: Network) {
                 Log.d(TAG, "Network lost")
-                updateNotification("Server error or Offline")
+                updateNotification("Disconnected")
             }
         }
 

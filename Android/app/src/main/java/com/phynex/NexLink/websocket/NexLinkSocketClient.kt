@@ -39,6 +39,10 @@ class NexLinkSocketClient {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val listeners = mutableMapOf<String, (JsonObject) -> Unit>()
 
+    @Volatile private var isConnecting = false
+    @Volatile private var connectRetryCount = 0
+    private val MAX_BACKOFF_MS = 60_000L
+
     // ── Public state flows ─────────────────────────────────────────────────
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected
@@ -76,8 +80,12 @@ class NexLinkSocketClient {
 
     fun disconnect() {
         isManualDisconnect = true
-        socket?.disconnect()
+        isConnecting = false
+        connectRetryCount = 0
+        val s = socket
         socket = null
+        s?.off()
+        s?.disconnect()
         _isConnected.value    = false
         _isPeerOnline.value   = false
         _connectionMode.value = "Disconnected"
@@ -98,7 +106,7 @@ class NexLinkSocketClient {
     }
 
     fun reconnect() {
-        if (!isManualDisconnect && !_isConnected.value) {
+        if (!isManualDisconnect && !_isConnected.value && !isConnecting) {
             buildAndConnect()
         }
     }
@@ -106,19 +114,25 @@ class NexLinkSocketClient {
     // ─── Internal ──────────────────────────────────────────────────────────
 
     private fun buildAndConnect() {
-        socket?.disconnect()
-        socket?.off()
+        if (isConnecting) return   // guard against duplicate calls
+        isConnecting = true
+
+        // Fully tear down any previous socket before creating a new one
+        val old = socket
+        socket = null
+        old?.off()
+        old?.disconnect()
 
         _connectionMode.value = "Connecting…"
         Log.d(TAG, "Connecting to $relayUrl  uid=$userId  device=$deviceId")
 
         try {
             val opts = IO.Options.builder()
-                .setTransports(arrayOf("polling", "websocket"))  // polling first, then upgrade
+                .setTransports(arrayOf("websocket"))   // WebSocket-only — skip polling to avoid Render 503 on cold start
                 .setReconnection(true)
                 .setReconnectionDelay(5000)
                 .setReconnectionAttempts(Int.MAX_VALUE)
-                .setTimeout(20000)
+                .setTimeout(30000)
                 .setAuth(mapOf("token" to firebaseToken, "userId" to userId))
                 .build()
 
@@ -127,6 +141,8 @@ class NexLinkSocketClient {
 
             sock.on(Socket.EVENT_CONNECT) {
                 Log.d(TAG, "Socket.IO connected  id=${sock.id()}")
+                isConnecting = false
+                connectRetryCount = 0
                 _isConnected.value   = true
                 _connectionMode.value = "Cloud Relay"
 
@@ -164,9 +180,11 @@ class NexLinkSocketClient {
             sock.on(Socket.EVENT_CONNECT_ERROR) { args ->
                 val err = args?.firstOrNull()?.toString() ?: "unknown"
                 Log.e(TAG, "Connect error: $err")
+                isConnecting = false
                 _isConnected.value    = false
                 _isPeerOnline.value   = false
                 _connectionMode.value = "Connection Error"
+                // Socket.IO's built-in reconnect handles retries; we just track state
             }
 
             sock.on("peer_online") { _ ->
@@ -236,7 +254,18 @@ class NexLinkSocketClient {
             sock.connect()
         } catch (e: Exception) {
             Log.e(TAG, "buildAndConnect failed: ${e.message}")
+            isConnecting = false
             _connectionMode.value = "Error"
+            // Schedule a retry with backoff if not manually disconnected
+            if (!isManualDisconnect) {
+                val backoffMs = minOf(5_000L * (1L shl connectRetryCount.coerceAtMost(3)), MAX_BACKOFF_MS)
+                connectRetryCount++
+                Log.w(TAG, "Retrying in ${backoffMs}ms (attempt $connectRetryCount)")
+                scope.launch {
+                    delay(backoffMs)
+                    if (!isManualDisconnect && !_isConnected.value) buildAndConnect()
+                }
+            }
         }
     }
 

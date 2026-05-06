@@ -21,15 +21,35 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 
+import com.phynex.NexLink.MainActivity
 import com.phynex.NexLink.model.*
 import com.phynex.NexLink.service.LinkBridgeNotificationService
 import com.phynex.NexLink.service.SmsReceiver
 import com.phynex.NexLink.service.PairingManager
 import com.phynex.NexLink.websocket.NexLinkSocketClient
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import androidx.camera.core.*
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.content.ContextCompat
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.Rect
+import android.graphics.YuvImage
+import java.io.ByteArrayOutputStream
+import android.database.ContentObserver
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.BroadcastReceiver
+import android.os.BatteryManager
+import android.os.Handler
+import android.os.Looper
+import android.service.notification.StatusBarNotification
 
 // ── Safe JSON helpers (guard against JsonArray instead of JsonPrimitive and handle PascalCase) ───
 private fun JsonObject.safeGet(key: String) = get(key) ?: get(key.replaceFirstChar { it.uppercase() })
@@ -193,6 +213,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var currentDownloadFile: FileOutputStream? = null
     private var currentDownloadName: String? = null
 
+    // ── Camera Streaming State ──────────────────────────────────────────────
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var imageAnalysis: ImageAnalysis? = null
+    private var cameraExecutor: ExecutorService? = null
+    private var isCameraStreaming = false
+
+    // ── Status Observers ───────────────────────────────────────────────────
+    private var batteryReceiver: BroadcastReceiver? = null
+    private var volumeObserver: ContentObserver? = null
+
     private val prefs = application.getSharedPreferences("NexLinkPrefs", android.content.Context.MODE_PRIVATE)
 
     private val _themeMode = MutableStateFlow(prefs.getString("theme_mode", "System") ?: "System")
@@ -220,11 +250,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         setupSmsForwarding()
         observeFirebaseAuth()
         autoReconnect()
+        setupStatusObservers()
+    }
+
+    private fun setupStatusObservers() {
+        // 1. Battery Observer
+        batteryReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: Intent?) {
+                sendSystemInfoToPC()
+            }
+        }
+        getApplication<Application>().registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+
+        // 2. Volume Observer
+        volumeObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                sendSystemInfoToPC()
+            }
+        }
+        getApplication<Application>().contentResolver.registerContentObserver(
+            android.provider.Settings.System.CONTENT_URI, true, volumeObserver!!
+        )
     }
 
     override fun onCleared() {
         super.onCleared()
         if (instance == this) instance = null
+        batteryReceiver?.let { try { getApplication<Application>().unregisterReceiver(it) } catch (_: Exception) {} }
+        volumeObserver?.let { getApplication<Application>().contentResolver.unregisterContentObserver(it) }
+        stopMobileCameraStream()
+        cameraExecutor?.shutdown()
+        audioTrack?.stop()
+        audioTrack?.release()
+        audioTrack = null
         socketClient.disconnect()
     }
 
@@ -314,14 +372,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             refreshAndSaveToken(doConnect)
         }
 
-        // Request initial PC data once connected
+        // Request initial PC data once connected — use `first` so this coroutine
+        // auto-cancels after the first true emission instead of leaking a collector.
         viewModelScope.launch {
-            socketClient.isConnected.collect { connected ->
-                if (connected) {
-                    requestInitialData()
-                    return@collect
-                }
-            }
+            socketClient.isConnected.first { it }
+            requestInitialData()
         }
     }
 
@@ -653,10 +708,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         socketClient.addListener("camera_audio") { json ->
             try {
+                if (audioTrack == null) {
+                    val sampleRate = 16000
+                    val channelConfig = android.media.AudioFormat.CHANNEL_OUT_MONO
+                    val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+                    val minBufferSize = android.media.AudioTrack.getMinBufferSize(sampleRate, channelConfig, audioFormat)
+                    
+                    audioTrack = android.media.AudioTrack.Builder()
+                        .setAudioAttributes(android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build())
+                        .setAudioFormat(android.media.AudioFormat.Builder()
+                            .setEncoding(audioFormat)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(channelConfig)
+                            .build())
+                        .setBufferSizeInBytes(minBufferSize)
+                        .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+                        .build()
+                    audioTrack?.play()
+                }
+
                 val b64 = json.safeStr("data") ?: return@addListener
                 val bytes = Base64.decode(b64, Base64.DEFAULT)
                 audioTrack?.write(bytes, 0, bytes.size)
-            } catch (e: Exception) { }
+            } catch (e: Exception) { 
+                Log.e(TAG, "Audio play error: ${e.message}")
+            }
         }
 
         socketClient.addListener("file_preview_data") { json ->
@@ -682,6 +761,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.addListener("peer_online") { _ ->
             // PC just came online — blast ALL our mobile state to it!
             sendSystemInfoToPC()
+            sendAllNotifications()
             viewModelScope.launch {
                 kotlinx.coroutines.delay(500)
                 sendSmsList()
@@ -749,6 +829,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+        socketClient.addListener("clear_mobile_notification") { json ->
+            val key = json.safeStr("key", "")
+            if (key.isNotBlank()) {
+                LinkBridgeNotificationService.clearNotification(key)
+            }
+        }
+
+        socketClient.addListener("request_all_notifications") { _ ->
+            sendAllNotifications()
+        }
+
+        socketClient.addListener("clear_all_notifications") { _ ->
+            LinkBridgeNotificationService.cancelAllNotifications()
+        }
+
         // ── Windows → Android: request SMS list ──────────────────────────
         socketClient.addListener("request_mobile_sms") { _ ->
             viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) { sendSmsList() }
@@ -855,6 +950,107 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        // ── Windows → Android: Camera Stream ──────────────────────────
+        socketClient.addListener("start_mobile_camera") { json ->
+            val front = json.safeBool("front", false)
+            startMobileCameraStream(front)
+        }
+
+        socketClient.addListener("stop_mobile_camera") { _ ->
+            stopMobileCameraStream()
+        }
+
+        socketClient.addListener("start_mobile_screen") { _ ->
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                MainActivity.instance?.requestScreenCapture()
+            }
+        }
+
+        socketClient.addListener("stop_mobile_screen") { _ ->
+            stopMobileScreenStream()
+        }
+    }
+
+    private fun startMobileCameraStream(front: Boolean) {
+        if (isCameraStreaming) stopMobileCameraStream()
+        isCameraStreaming = true
+        
+        cameraExecutor = Executors.newSingleThreadExecutor()
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(getApplication())
+        
+        cameraProviderFuture.addListener({
+            try {
+                cameraProvider = cameraProviderFuture.get()
+                val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+                
+                imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetResolution(android.util.Size(480, 640))
+                    .build()
+
+                imageAnalysis?.setAnalyzer(cameraExecutor!!) { imageProxy ->
+                    processCameraImage(imageProxy)
+                }
+
+                cameraProvider?.unbindAll()
+                cameraProvider?.bindToLifecycle(MainActivity.instance!!, selector, imageAnalysis)
+            } catch (e: Exception) {
+                Log.e(TAG, "CameraX bind failed", e)
+                isCameraStreaming = false
+            }
+        }, ContextCompat.getMainExecutor(getApplication()))
+    }
+
+    private fun processCameraImage(imageProxy: ImageProxy) {
+        try {
+            val bitmap = imageProxy.toBitmap()
+            val out = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out)
+            val base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+            
+            socketClient.sendMessage(mapOf(
+                "type" to "mobile_camera_frame",
+                "data" to base64
+            ))
+        } catch (e: Exception) {
+            Log.e(TAG, "Frame process failed", e)
+        } finally {
+            imageProxy.close()
+        }
+    }
+
+    private fun stopMobileCameraStream() {
+        isCameraStreaming = false
+        cameraProvider?.unbindAll()
+        cameraExecutor?.shutdown()
+        cameraExecutor = null
+    }
+
+    private fun ImageProxy.toBitmap(): Bitmap {
+        val yBuffer = planes[0].buffer
+        val uBuffer = planes[1].buffer
+        val vBuffer = planes[2].buffer
+
+        val ySize = yBuffer.remaining()
+        val uSize = uBuffer.remaining()
+        val vSize = vBuffer.remaining()
+
+        val nv21 = ByteArray(ySize + uSize + vSize)
+        yBuffer.get(nv21, 0, ySize)
+        vBuffer.get(nv21, ySize, vSize)
+        uBuffer.get(nv21, ySize + vSize, uSize)
+
+        val yuvImage = YuvImage(nv21, android.graphics.ImageFormat.NV21, width, height, null)
+        val out = ByteArrayOutputStream()
+        yuvImage.compressToJpeg(Rect(0, 0, width, height), 100, out)
+        val imageBytes = out.toByteArray()
+        val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+
+        // Rotate if needed
+        val matrix = Matrix()
+        matrix.postRotate(imageInfo.rotationDegrees.toFloat())
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun addClipboard(json: JsonObject, source: String) {
@@ -866,13 +1062,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Forwarding setup ──────────────────────────────────────────────────
 
     private fun setupNotificationForwarding() {
-        LinkBridgeNotificationService.onNotification = { app, title, body ->
+        LinkBridgeNotificationService.onNotification = { app, title, body, key ->
+            val cleanApp = try {
+                val pm = getApplication<Application>().packageManager
+                val ai = pm.getApplicationInfo(app, 0)
+                pm.getApplicationLabel(ai).toString()
+            } catch (_: Exception) { app.split(".").last().replaceFirstChar { it.uppercase() } }
+
             socketClient.sendMessage(mapOf(
                 "type"      to "notification",
-                "app"       to app,
+                "app"       to cleanApp,
                 "title"     to title,
                 "body"      to body,
+                "key"       to key,
                 "timestamp" to System.currentTimeMillis()
+            ))
+            sendMobileStatus()
+        }
+    }
+
+    fun sendAllNotifications() {
+        val notifs = LinkBridgeNotificationService.instance?.getAllActiveNotifications() ?: return
+        notifs.forEach { n ->
+            val app = n["app"] ?: ""
+            val cleanApp = try {
+                val pm = getApplication<Application>().packageManager
+                val ai = pm.getApplicationInfo(app, 0)
+                pm.getApplicationLabel(ai).toString()
+            } catch (_: Exception) { app.split(".").last().replaceFirstChar { it.uppercase() } }
+
+            socketClient.sendMessage(mapOf(
+                Pair("type",      "notification"),
+                Pair("app",       cleanApp),
+                Pair("title",     n["title"] ?: ""),
+                Pair("body",      n["body"] ?: ""),
+                Pair("key",       n["key"] ?: ""),
+                Pair("timestamp", System.currentTimeMillis())
             ))
         }
     }
@@ -906,16 +1131,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _nowPlaying.value = _nowPlaying.value?.copy(position = positionSec)
     }
 
+    private var lastVolumeSentTime = 0L
+    private var lastBrightnessSentTime = 0L
+
     fun sendVolume(level: Int) {
-        _lastSentVolume = level
         _volume.value = level
-        socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
+        val now = System.currentTimeMillis()
+        if (now - lastVolumeSentTime > 80) { // Throttle to ~12 updates per second
+            _lastSentVolume = level
+            socketClient.sendMessage(mapOf("type" to "volume", "level" to level))
+            lastVolumeSentTime = now
+        }
     }
 
     fun sendBrightness(level: Int) {
-        _lastSentBrightness = level
         _brightness.value = level
-        socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
+        val now = System.currentTimeMillis()
+        if (now - lastBrightnessSentTime > 80) {
+            _lastSentBrightness = level
+            socketClient.sendMessage(mapOf("type" to "brightness", "level" to level))
+            lastBrightnessSentTime = now
+        }
     }
 
     fun lockPC() = socketClient.sendMessage(mapOf("type" to "lock_pc"))
@@ -1325,9 +1561,76 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.sendMessage(mapOf("type" to "start_screen"))
     }
 
+    fun startBoundedScreenStream() {
+        _isStreamingScreen.value = true
+        socketClient.sendMessage(mapOf("type" to "start_screen_bound"))
+    }
+
+    fun startExtendScreenStream() {
+        _isStreamingScreen.value = true
+        socketClient.sendMessage(mapOf("type" to "start_screen_extend"))
+    }
+
     fun stopScreenStream() {
         _isStreamingScreen.value = false
         socketClient.sendMessage(mapOf("type" to "stop_screen"))
+        stopMobileScreenStream()
+    }
+
+    private var mediaProjection: android.media.projection.MediaProjection? = null
+    private var virtualDisplay: android.hardware.display.VirtualDisplay? = null
+
+    fun startMobileScreenStream(resultCode: Int, data: android.content.Intent) {
+        val mpManager = getApplication<Application>().getSystemService(android.content.Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        mediaProjection = mpManager.getMediaProjection(resultCode, data)
+        
+        val metrics = getApplication<Application>().resources.displayMetrics
+        val width = 720
+        val height = 1280
+        val dpi = metrics.densityDpi
+
+        val imageReader = android.media.ImageReader.newInstance(width, height, android.graphics.PixelFormat.RGBA_8888, 2)
+        virtualDisplay = mediaProjection?.createVirtualDisplay("NexLinkStream", width, height, dpi, android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.surface, null, null)
+
+        _isStreamingScreen.value = true
+        
+        viewModelScope.launch {
+            while (_isStreamingScreen.value) {
+                try {
+                    val image = imageReader.acquireLatestImage() ?: continue
+                    val planes = image.planes
+                    val buffer = planes[0].buffer
+                    val pixelStride = planes[0].pixelStride
+                    val rowStride = planes[0].rowStride
+                    val rowPadding = rowStride - pixelStride * width
+                    
+                    val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
+                    bitmap.copyPixelsFromBuffer(buffer)
+                    image.close()
+
+                    val out = ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 60, out)
+                    val base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+                    
+                    socketClient.sendMessage(mapOf(
+                        "type" to "mobile_screen_frame",
+                        "data" to base64
+                    ))
+                    delay(100) // 10fps
+                } catch (e: Exception) {
+                    delay(100)
+                }
+            }
+            imageReader.close()
+        }
+    }
+
+    fun stopMobileScreenStream() {
+        _isStreamingScreen.value = false
+        virtualDisplay?.release()
+        virtualDisplay = null
+        mediaProjection?.stop()
+        mediaProjection = null
     }
 
     fun startCameraStream(enableMic: Boolean) {

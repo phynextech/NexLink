@@ -24,12 +24,44 @@ import com.phynex.NexLink.ui.theme.LinkBridgeTheme
 import com.phynex.NexLink.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        var instance: MainActivity? = null
+    }
 
     private var clipboardManager: ClipboardManager? = null
     private var lastClipHash: Int = 0
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        val vm = MainViewModel.instance ?: return@OnPrimaryClipChangedListener
+        if (!vm.isConnected.value) return@OnPrimaryClipChangedListener
+        try {
+            val item = clipboardManager?.primaryClip?.getItemAt(0)
+            val text = item?.text?.toString()
+            if (!text.isNullOrEmpty()) {
+                val hash = text.hashCode()
+                if (hash != lastClipHash) {
+                    lastClipHash = hash
+                    vm.pushClipboard(text)
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    val isPiPMode = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    fun enterPiP() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            enterPictureInPictureMode(android.app.PictureInPictureParams.Builder().build())
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isPiPMode.value = isInPictureInPictureMode
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        instance = this
         enableEdgeToEdge()
 
         // Start persistent background service
@@ -94,21 +126,7 @@ class MainActivity : ComponentActivity() {
 
         // Register clipboard listener
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboardManager?.addPrimaryClipChangedListener {
-            val vm = MainViewModel.instance ?: return@addPrimaryClipChangedListener
-            if (!vm.isConnected.value) return@addPrimaryClipChangedListener
-            try {
-                val item = clipboardManager?.primaryClip?.getItemAt(0)
-                val text = item?.text?.toString()
-                if (!text.isNullOrEmpty()) {
-                    val hash = text.hashCode()
-                    if (hash != lastClipHash) {
-                        lastClipHash = hash
-                        vm.pushClipboard(text)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
+        clipboardManager?.addPrimaryClipChangedListener(clipboardListener)
 
         setContent {
             val viewModel: MainViewModel = viewModel()
@@ -125,6 +143,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        instance = this
         // On Android 10+, background clipboard listening is blocked.
         // Sync the clipboard immediately when the app returns to the foreground.
         val vm = MainViewModel.instance ?: return
@@ -167,9 +186,23 @@ class MainActivity : ComponentActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    private val screenCaptureLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK && result.data != null) {
+            MainViewModel.instance?.startMobileScreenStream(result.resultCode, result.data!!)
+        }
+    }
+
+    fun requestScreenCapture() {
+        val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+        screenCaptureLauncher.launch(mpManager.createScreenCaptureIntent())
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        clipboardManager?.removePrimaryClipChangedListener {}
+        clipboardManager?.removePrimaryClipChangedListener(clipboardListener)
+        instance = null
     }
 }
 
@@ -217,8 +250,10 @@ fun LinkBridgeApp(viewModel: MainViewModel) {
                 onNavigateToAppLauncher  = { navController.navigate(Screen.APP_LAUNCHER.route) },
                 onNavigateToClipboard    = { navController.navigate(Screen.CLIPBOARD.route) },
                 onNavigateToCameraScreen = { navController.navigate(Screen.CAMERA_SCREEN.route) },
+                onNavigateToExtendScreen = { navController.navigate(Screen.EXTEND_SCREEN.route) },
                 onNavigateToFileBrowser  = { navController.navigate(Screen.FILE_BROWSER.route) },
-                onNavigateToTrackpad     = { navController.navigate(Screen.TRACKPAD.route) }
+                onNavigateToTrackpad     = { navController.navigate(Screen.TRACKPAD.route) },
+                onNavigateToSettings     = { navController.navigate(Screen.SETTINGS.route) }
             )
         }
 
@@ -242,8 +277,20 @@ fun LinkBridgeApp(viewModel: MainViewModel) {
             CameraScreenPage(viewModel = viewModel, onBack = { navController.popBackStack() })
         }
 
+        composable(Screen.EXTEND_SCREEN.route) {
+            ExtendScreenPage(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
         composable(Screen.TRACKPAD.route) {
             TrackpadScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+        }
+
+        composable(Screen.SETTINGS.route) {
+            SettingsScreen(
+                viewModel = viewModel, 
+                onBack = { navController.popBackStack() },
+                onNavigateToQrScanner = { navController.navigate(Screen.QR_SCANNER.route) }
+            )
         }
     }
 }
