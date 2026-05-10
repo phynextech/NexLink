@@ -29,7 +29,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
-import java.io.FileOutputStream
 import java.security.SecureRandom
 import java.util.UUID
 import javax.crypto.Cipher
@@ -95,7 +94,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 val type = object : com.google.gson.reflect.TypeToken<List<ChatMessage>>() {}.type
                 val cached: List<ChatMessage> = gson2.fromJson(json, type) ?: return@launch
                 if (cached.isNotEmpty() && _messages.value.isEmpty()) {
-                    _messages.value = cached.sortedBy { it.timestamp }
+                    // Deduplicate at load time in case the cache itself has issues
+                    _messages.value = cached.distinctBy { it.messageId }.sortedBy { it.timestamp }
                     Log.d(TAG, "Loaded ${cached.size} messages from local cache (room=$roomKey)")
                 }
             } catch (e: Exception) {
@@ -230,28 +230,32 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 var bytes = Base64.decode(data64, Base64.NO_WRAP)
                 if (encrypted && aesKey != null) bytes = decryptChunk(bytes, index)
 
-                FileOutputStream(session.destPath, true).use { fos ->
-                    // Write at correct offset — reopen each time for correctness
-                    val raf = java.io.RandomAccessFile(session.destPath, "rw")
+                // Use RandomAccessFile without FileOutputStream wrapper to prevent lock contention
+                java.io.RandomAccessFile(session.destPath, "rw").use { raf ->
                     raf.seek(index.toLong() * CHUNK_SIZE)
                     raf.write(bytes)
-                    raf.close()
                 }
 
                 session.receivedIndices.add(index)
                 emit("chat_file_ack", mapOf("fileId" to fileId, "chunkIndex" to index))
 
-                val progress = session.receivedIndices.size.toFloat() / total
-                val elapsed  = (System.currentTimeMillis() - session.startedAt) / 1000.0
-                val bytesRcvd = session.receivedIndices.size.toLong() * CHUNK_SIZE
-                val speed    = if (elapsed > 0) bytesRcvd / elapsed else 0.0
-                val eta      = if (speed > 0) (session.fileSize - bytesRcvd) / speed else 0.0
+                val now = System.currentTimeMillis()
+                // Throttle UI updates to every 250ms or on completion to prevent MainThread ANR
+                if (now - session.lastUiUpdate > 250 || session.receivedIndices.size == total) {
+                    session.lastUiUpdate = now
+                    val progress = session.receivedIndices.size.toFloat() / total
+                    val elapsed  = (now - session.startedAt) / 1000.0
+                    val bytesRcvd = session.receivedIndices.size.toLong() * CHUNK_SIZE
+                    val speed    = if (elapsed > 0) bytesRcvd / elapsed else 0.0
+                    val eta      = if (speed > 0) (session.fileSize - bytesRcvd) / speed else 0.0
 
-                updateMessageProgress(
-                    fileId, progress,
-                    formatSpeed(speed),
-                    formatEta(eta)
-                )
+                    withContext(Dispatchers.Main) {
+                        updateMessageProgress(
+                            fileId, progress,
+                            formatSpeed(speed), formatEta(eta)
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Chunk write error: ${e.message}")
             }
@@ -291,29 +295,47 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // ── History ───────────────────────────────────────────────────────────
     private fun loadHistory(data: JsonObject) {
         val arr = data.getAsJsonArray("messages") ?: return
-        val msgs = arr.mapNotNull { el ->
-            if (!el.isJsonObject) return@mapNotNull null
-            val m = el.asJsonObject
-            ChatMessage(
-                messageId     = m.optStr("messageId") ?: UUID.randomUUID().toString(),
-                senderId      = m.optStr("senderId") ?: "",
-                isSentByMe    = m.optStr("senderId") == "mobile",
-                messageType   = ChatMessageType.valueOf(m.optStr("type")?.uppercase() ?: "TEXT").let { it },
-                content       = m.optStr("content") ?: "",
-                fileName      = m.optStr("fileName"),
-                mimeType      = m.optStr("fileMime") ?: "",
-                fileSizeBytes = m.get("fileSizeBytes")?.asLong ?: 0L,
-                fileId        = m.optStr("fileId"),
-                isDelivered   = m.get("isDelivered")?.asBoolean ?: false,
-                isRead        = m.get("isRead")?.asBoolean ?: false,
-                isStarred     = m.get("isStarred")?.asBoolean ?: false,
-                reaction      = m.optStr("reaction"),
-                transferState = TransferState.COMPLETE,
-                timestamp     = m.get("timestamp")?.asLong ?: System.currentTimeMillis(),
-            )
-        }.sortedBy { it.timestamp }
+        if (arr.size() == 0) return // Don't wipe local cache if server is empty
 
-        _messages.value = msgs
+        val current = _messages.value.associateBy { it.messageId }.toMutableMap()
+        
+        arr.forEach { el ->
+            if (!el.isJsonObject) return@forEach
+            val m = el.asJsonObject
+            val msgId = m.optStr("messageId") ?: return@forEach
+            val existing = current[msgId]
+            
+            if (existing != null) {
+                // Merge delivery/read state, keep local file paths and transfer states
+                current[msgId] = existing.copy(
+                    isDelivered = m.get("isDelivered")?.asBoolean ?: existing.isDelivered,
+                    isRead      = m.get("isRead")?.asBoolean ?: existing.isRead,
+                    isStarred   = m.get("isStarred")?.asBoolean ?: existing.isStarred,
+                    reaction    = m.optStr("reaction") ?: existing.reaction
+                )
+            } else {
+                current[msgId] = ChatMessage(
+                    messageId     = msgId,
+                    senderId      = m.optStr("senderId") ?: "",
+                    isSentByMe    = m.optStr("senderId") == "mobile",
+                    messageType   = runCatching { ChatMessageType.valueOf(m.optStr("type")?.uppercase() ?: "TEXT") }.getOrDefault(ChatMessageType.TEXT),
+                    content       = m.optStr("content") ?: "",
+                    fileName      = m.optStr("fileName"),
+                    mimeType      = m.optStr("fileMime") ?: "",
+                    fileSizeBytes = m.get("fileSizeBytes")?.asLong ?: 0L,
+                    fileId        = m.optStr("fileId"),
+                    isDelivered   = m.get("isDelivered")?.asBoolean ?: false,
+                    isRead        = m.get("isRead")?.asBoolean ?: false,
+                    isStarred     = m.get("isStarred")?.asBoolean ?: false,
+                    reaction      = m.optStr("reaction"),
+                    transferState = if (m.has("fileId")) TransferState.COMPLETE else TransferState.NONE,
+                    timestamp     = m.get("timestamp")?.asLong ?: System.currentTimeMillis(),
+                )
+            }
+        }
+        
+        // associateBy already deduplicates by key; extra distinctBy for safety
+        _messages.value = current.values.distinctBy { it.messageId }.sortedBy { it.timestamp }
         saveLocalCache()
     }
 
@@ -467,7 +489,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     // ══════════════════════════════════════════════════════════════════════
 
     private fun addMessage(msg: ChatMessage) {
-        _messages.value = _messages.value + msg
+        // Guard: never allow duplicate messageIds — LazyColumn will crash
+        if (_messages.value.any { it.messageId == msg.messageId }) return
+        _messages.value = (_messages.value + msg).distinctBy { it.messageId }
         saveLocalCache()
     }
 
@@ -484,19 +508,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun updateMsg(msgId: String?, transform: (ChatMessage) -> ChatMessage) {
         if (msgId == null) return
-        _messages.value = _messages.value.map { if (it.messageId == msgId) transform(it) else it }
+        viewModelScope.launch(Dispatchers.Main) {
+            _messages.value = _messages.value
+                .map { if (it.messageId == msgId) transform(it) else it }
+                .distinctBy { it.messageId }
+        }
     }
 
     private fun updateMessageState(fileId: String?, state: TransferState) {
         if (fileId == null) return
-        _messages.value = _messages.value.map {
-            if (it.fileId == fileId) it.copy(transferState = state) else it
+        viewModelScope.launch(Dispatchers.Main) {
+            _messages.value = _messages.value
+                .map { if (it.fileId == fileId) it.copy(transferState = state) else it }
+                .distinctBy { it.messageId }
         }
     }
 
     private fun updateMessageProgress(fileId: String, progress: Float, speed: String, eta: String) {
-        _messages.value = _messages.value.map {
-            if (it.fileId == fileId) it.copy(transferProgress = progress, speedLabel = speed, etaLabel = eta) else it
+        viewModelScope.launch(Dispatchers.Main) {
+            _messages.value = _messages.value
+                .map { if (it.fileId == fileId) it.copy(transferProgress = progress, speedLabel = speed, etaLabel = eta) else it }
+                .distinctBy { it.messageId }
         }
     }
 
@@ -614,6 +646,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val fileSize:        Long,
         val receivedIndices: MutableSet<Int> = mutableSetOf(),
         val startedAt:       Long = System.currentTimeMillis(),
+        var lastUiUpdate:    Long = 0L,
     )
 }
 

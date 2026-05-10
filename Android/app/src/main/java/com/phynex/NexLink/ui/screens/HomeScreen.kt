@@ -309,7 +309,6 @@ fun HomeScreen(
                         )
                     }
 
-                    QuickAction(Icons.Default.MusicNote, "Music", onNavigateToMusic)
                     QuickAction(Icons.Default.DesktopMac, "Extend", onNavigateToExtendScreen)
                     QuickAction(Icons.Default.PhotoCamera, "Camera", onNavigateToCameraScreen)
                     QuickAction(Icons.Default.Mouse, "Mouse", onNavigateToTrackpad)
