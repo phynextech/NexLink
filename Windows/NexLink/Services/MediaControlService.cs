@@ -11,6 +11,36 @@ namespace NexLink.Services
     {
         [DllImport("user32.dll")]
         static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
+        
+        [DllImport("user32.dll")]
+        static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll")]
+        static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+        public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+        [DllImport("user32.dll")]
+        static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+        }
 
         const byte VK_MEDIA_PLAY_PAUSE = 0xB3;
         const byte VK_MEDIA_NEXT_TRACK = 0xB0;
@@ -105,6 +135,20 @@ namespace NexLink.Services
                     catch { }
                 }
 
+                // If no album art is provided (e.g. YouTube in browser), capture the media player window!
+                if (albumArtB64 == null)
+                {
+                    try
+                    {
+                        var bounds = await GetActiveMediaWindowBoundsAsync();
+                        if (bounds != null)
+                        {
+                            albumArtB64 = new ScreenCaptureService().CaptureScreen(bounds, highQuality: true);
+                        }
+                    }
+                    catch { }
+                }
+
                 bool isPlaying = pb.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 
                 // Shuffle/Repeat
@@ -184,6 +228,63 @@ namespace NexLink.Services
                 }
             }
             catch { }
+        }
+
+        public static async Task<RECT?> GetActiveMediaWindowBoundsAsync()
+        {
+            try
+            {
+                var smgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                var session = smgr.GetCurrentSession();
+                if (session == null) return null;
+
+                string appId = session.SourceAppUserModelId ?? "";
+                if (string.IsNullOrEmpty(appId)) return null;
+
+                // Match typical media app process names based on appId
+                string targetProcName = "";
+                if (appId.Contains("Spotify", StringComparison.OrdinalIgnoreCase)) targetProcName = "Spotify";
+                else if (appId.Contains("chrome", StringComparison.OrdinalIgnoreCase)) targetProcName = "chrome";
+                else if (appId.Contains("brave", StringComparison.OrdinalIgnoreCase)) targetProcName = "brave";
+                else if (appId.Contains("msedge", StringComparison.OrdinalIgnoreCase)) targetProcName = "msedge";
+                else if (appId.Contains("vlc", StringComparison.OrdinalIgnoreCase)) targetProcName = "vlc";
+                else if (appId.Contains("firefox", StringComparison.OrdinalIgnoreCase)) targetProcName = "firefox";
+                else return null;
+
+                RECT? bounds = null;
+                long largestArea = 0;
+
+                EnumWindows((hWnd, lParam) =>
+                {
+                    if (IsWindowVisible(hWnd) && GetWindowTextLength(hWnd) > 0)
+                    {
+                        GetWindowThreadProcessId(hWnd, out uint pid);
+                        try
+                        {
+                            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                            if (proc.ProcessName.Contains(targetProcName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (GetWindowRect(hWnd, out RECT rect))
+                                {
+                                    // Sometimes there are multiple windows (e.g., extensions, invisible players)
+                                    // Choose the largest visible one
+                                    long area = (long)rect.Width * rect.Height;
+                                    if (area > largestArea && rect.Width > 200 && rect.Height > 200)
+                                    {
+                                        largestArea = area;
+                                        bounds = rect;
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    return true;
+                }, IntPtr.Zero);
+
+                return bounds;
+            }
+            catch { return null; }
         }
     }
 

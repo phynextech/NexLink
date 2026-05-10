@@ -23,6 +23,11 @@ namespace NexLink.ViewModels
         private readonly CameraService _cameraService = new();
         private readonly AudioStreamService _audioStreamService = new();
         private readonly ClipboardService _clipboardService = new();
+        private readonly UdpDiscoveryService _udpDiscovery = new();
+        public readonly LocalWebSocketServer LocalWsServer = new();
+        public WebRtcManager WebRtcManager { get; }
+        private bool _isLanConnected = false;
+        private VirtualWorkspaceWindow? _virtualWorkspaceWindow;
 
         // ─── Connection ───
         private bool _isConnected;
@@ -58,6 +63,12 @@ namespace NexLink.ViewModels
         public ObservableCollection<SmsThread> SmsThreads { get; } = new();
         public ObservableCollection<SmsMessage> CurrentThreadMessages { get; } = new();
 
+        // ─── Trusted Devices ───
+        public ObservableCollection<string> TrustedDevices { get; } = new ObservableCollection<string> {
+            "Galaxy S24 Ultra",
+            "Pixel 7 Pro (Offline)"
+        };
+
         private SmsThread? _selectedThread;
         public SmsThread? SelectedThread { get => _selectedThread; set { _selectedThread = value; OnPropertyChanged(); } }
 
@@ -76,6 +87,7 @@ namespace NexLink.ViewModels
 
         public MainViewModel()
         {
+            WebRtcManager = new WebRtcManager(SendData);
             SetupWebSocket();
             SetupClipboard();
             StartNowPlayingPolling();
@@ -99,55 +111,124 @@ namespace NexLink.ViewModels
             };
 
             WsService.MessageReceived += HandleMessage;
+
+            LocalWsServer.MessageReceived += msgJson =>
+            {
+                try
+                {
+                    var msg = JObject.Parse(msgJson);
+                    HandleMessage(msg);
+                }
+                catch { }
+            };
+
+            LocalWsServer.ClientConnected += () =>
+            {
+                _isLanConnected = true;
+                ConnectionMode = "Direct LAN";
+                IsConnected = true;
+                StatusText = "Phone connected (LAN) ✓";
+                StartPeriodicInfoSend();
+            };
+
+            LocalWsServer.ClientDisconnected += () =>
+            {
+                _isLanConnected = false;
+                ConnectionMode = "Cloud Relay";
+                if (!WsService.IsPhoneConnected)
+                {
+                    IsConnected = false;
+                    StatusText = "Phone disconnected";
+                    StopPeriodicInfoSend();
+                }
+            };
+            
+            // Start Local WebSocket server
+            LocalWsServer.Start();
         }
 
-        private System.Threading.Timer? _infoTimer;
+        public void StartLanDiscovery(string deviceId)
+        {
+            _udpDiscovery.StartBroadcasting(deviceId, Environment.MachineName, LocalWsServer.Port);
+        }
+
+        public void SendData(object payload)
+        {
+            if (_isLanConnected)
+                LocalWsServer.Broadcast(payload);
+            else
+                WsService.Send(payload);
+        }
+
+        public void SendDataRaw(string json)
+        {
+            if (_isLanConnected)
+                LocalWsServer.Broadcast(json);
+            else
+                WsService.SendRaw(json);
+        }
+
         private System.Threading.Timer? _wifiTimer;
         private System.Threading.Timer? _appsTimer;
-        private int _lastRunningAppsHash = 0;
+        private System.Threading.Timer? _perfTimer;
+        private System.Threading.Timer? _stateTimer;
+        private int  _lastRunningAppsHash = 0;
         private string _lastWifiSsid = "";
+
+        // ── Performance metrics — sent every 5s regardless of change ─────────
+        private DateTime _lastPerfSentAt = DateTime.MinValue;
 
         private void StartPeriodicInfoSend()
         {
             StopPeriodicInfoSend();
-            // Full info every 15 seconds
-            _infoTimer = new System.Threading.Timer(_ =>
-            {
-                if (IsConnected) SendSystemInfo();
-            }, null, 15000, 15000);
 
-            // WiFi SSID change detection every 2 seconds
+            // ── WiFi: check every 3s, send ONLY when SSID changes ────────────
             _wifiTimer = new System.Threading.Timer(_ =>
             {
                 if (!IsConnected) return;
-                var ssid = WebSocketService.GetWifiSSID();
+                var (ssid, strength, connected) = SystemInfoService.GetWifiInfo();
                 if (ssid != _lastWifiSsid)
                 {
                     _lastWifiSsid = ssid;
-                    WsService.Send(new { type = "wifi_info", ssid, strength = 80 });
+                    SendData(new { type = "wifi_info", ssid, strength, connected });
                 }
-            }, null, 2000, 2000);
+            }, null, 3000, 3000);
 
+            // ── Running apps: check every 2s, send ONLY when window list changes ─
             _appsTimer = new System.Threading.Timer(_ =>
             {
                 if (!IsConnected) return;
                 var apps = SystemInfoService.GetRunningApps();
-                var perf = SystemInfoService.GetPerformanceMetrics();
-                int hash = string.Join(",", apps.Select(a => a.Name)).GetHashCode();
+                int hash = string.Join(",", apps.Select(a => $"{a.Handle}:{a.Name}")).GetHashCode();
                 if (hash != _lastRunningAppsHash)
                 {
                     _lastRunningAppsHash = hash;
+                    SendData(new { type = "state_update", running_apps = apps });
                 }
-                // Send performance continuously along with apps
-                WsService.Send(new { type = "state_update", running_apps = apps, performance = perf });
+            }, null, 2000, 2000);
+
+            // ── Performance metrics: send every 5s (always, lightweight) ─────
+            _perfTimer = new System.Threading.Timer(_ =>
+            {
+                if (!IsConnected) return;
+                var perf = SystemInfoService.GetPerformanceMetrics();
+                SendData(new { type = "state_update", performance = perf });
+            }, null, 5000, 5000);
+
+            // ── System State (battery, volume, brightness): send every 2s ────
+            _stateTimer = new System.Threading.Timer(_ =>
+            {
+                if (!IsConnected) return;
+                SendData(SystemInfoService.BuildStateUpdate());
             }, null, 2000, 2000);
         }
 
         private void StopPeriodicInfoSend()
         {
-            _infoTimer?.Dispose(); _infoTimer = null;
-            _wifiTimer?.Dispose(); _wifiTimer = null;
-            _appsTimer?.Dispose(); _appsTimer = null;
+            _wifiTimer?.Dispose();  _wifiTimer  = null;
+            _appsTimer?.Dispose();  _appsTimer  = null;
+            _perfTimer?.Dispose();  _perfTimer  = null;
+            _stateTimer?.Dispose(); _stateTimer = null;
         }
 
         private void HandleMessage(JObject msg)
@@ -157,7 +238,13 @@ namespace NexLink.ViewModels
             {
                 case "handshake":
                     PhoneName = msg["device"]?.ToString() ?? "Android Phone";
-                    Task.Run(async () => { SendSystemInfo(); await Task.Delay(500); SendAppList(); SendWallpaper(); });
+                    Task.Run(async () => { 
+                        SendSystemInfo(); 
+                        await Task.Delay(500); 
+                        SendAppList(); 
+                        SendWallpaper();
+                        SendData(new { type = "request_all_notifications" });
+                    });
                     break;
 
                 case "pong":
@@ -165,6 +252,10 @@ namespace NexLink.ViewModels
 
                 case "lock_pc":
                     SystemInfoService.LockPC();
+                    break;
+
+                case "power_command":
+                    SystemInfoService.ExecutePowerCommand(msg["action"]?.ToString() ?? "");
                     break;
 
                 case "volume":
@@ -216,28 +307,28 @@ namespace NexLink.ViewModels
                     break;
 
                 case "start_screen":
-                    _screenCapture.StartStreaming(b64 =>
-                        WsService.Send(new { type = "screen_frame", data = b64 }), 500);
+                    _ = WebRtcManager.StartScreenShareAsync();
                     break;
-
+                case "start_screen_bound":
+                    // Bound screen share could be implemented by cropping the captured bitmap in WebRtcManager
+                    _ = WebRtcManager.StartScreenShareAsync();
+                    break;
                 case "stop_screen":
-                    _screenCapture.StopStreaming();
+                    WebRtcManager.StopStream();
+                    System.Windows.Application.Current.Dispatcher.Invoke(() => {
+                        _virtualWorkspaceWindow?.Close();
+                        _virtualWorkspaceWindow = null;
+                    });
                     break;
-
+                case "start_screen_extend":
+                    // Extended workspace could also use WebRtcManager by capturing the specific window
+                    _ = WebRtcManager.StartScreenShareAsync(); 
+                    break;
                 case "start_camera":
-                    var enableMic = msg["enableMic"]?.ToObject<bool>() ?? false;
-                    _cameraService.StartStreaming(b64 =>
-                        WsService.Send(new { type = "camera_frame", data = b64 }), 100);
-                    if (enableMic)
-                    {
-                        _audioStreamService.StartStreaming(b64 =>
-                            WsService.Send(new { type = "camera_audio", data = b64 }));
-                    }
+                    _ = WebRtcManager.StartCameraAsync();
                     break;
-
                 case "stop_camera":
-                    _cameraService.StopStreaming();
-                    _audioStreamService.StopStreaming();
+                    WebRtcManager.StopStream();
                     break;
 
                 case "clipboard_push":
@@ -246,7 +337,7 @@ namespace NexLink.ViewModels
                     break;
 
                 case "clipboard_pull":
-                    WsService.Send(new { type = "clipboard_pull", content = ClipboardService.GetClipboardText() });
+                    SendData(new { type = "clipboard_pull", content = ClipboardService.GetClipboardText() });
                     break;
 
                 case "get_wallpaper":
@@ -260,14 +351,38 @@ namespace NexLink.ViewModels
                 case "send_notification":
                     App.Current.Dispatcher.Invoke(() =>
                     {
-                        Notifications.Insert(0, new NotificationItem
+                        var item = new NotificationItem
                         {
-                            App       = msg["app"]?.ToString() ?? "",
+                            AppName   = msg["app"]?.ToString() ?? "",
                             Title     = msg["title"]?.ToString() ?? "",
                             Body      = msg["body"]?.ToString() ?? "",
+                            Key       = msg["key"]?.ToString() ?? "",
                             Timestamp = DateTime.Now
-                        });
+                        };
+                        Notifications.Insert(0, item);
                         if (Notifications.Count > 50) Notifications.RemoveAt(Notifications.Count - 1);
+                        
+                        // Show Popup if not a sync-load
+                        if (msg["type"]?.ToString() == "notification")
+                        {
+                            ShowPopup(item.Title, item.Body);
+                        }
+                    });
+                    break;
+
+                case "mobile_wallpaper":
+                    App.Current.Dispatcher.Invoke(() => {
+                        var data = msg["data"]?.ToString();
+                        if (!string.IsNullOrEmpty(data)) {
+                            try {
+                                var bytes = Convert.FromBase64String(data);
+                                var bmp = new BitmapImage();
+                                bmp.BeginInit();
+                                bmp.StreamSource = new MemoryStream(bytes);
+                                bmp.EndInit();
+                                (App.Current.MainWindow as MainWindow)?.UpdateMobileWallpaper(bmp);
+                            } catch { }
+                        }
                     });
                     break;
 
@@ -293,26 +408,40 @@ namespace NexLink.ViewModels
 
                 case "mouse_scroll":
                 {
-                    var dy = msg["dy"]?.ToObject<float>() ?? 0f;
-                    MouseControlService.Scroll(dy);
+                    var isHorizontal = msg["horizontal"]?.ToObject<bool>() ?? false;
+                    if (isHorizontal)
+                    {
+                        var dx = msg["dx"]?.ToObject<float>() ?? 0f;
+                        MouseControlService.HScroll(dx);
+                    }
+                    else
+                    {
+                        var dy = msg["dy"]?.ToObject<float>() ?? 0f;
+                        MouseControlService.Scroll(dy);
+                    }
                     break;
                 }
+
+                case "key_press":
+                    MouseControlService.SendKeyPress(msg["key"]?.ToString() ?? "");
+                    break;
                 case "usb_connected":
                     UsbModeActive = true;
                     StatusText = "USB Touchpad mode active";
-                    WsService.Send(new { type = "usb_connected" });
+                    SendData(new { type = "usb_connected" });
                     break;
 
                 case "usb_disconnected":
                     UsbModeActive = false;
                     StatusText = "USB disconnected — WebSocket mode";
-                    WsService.Send(new { type = "usb_disconnected" });
+                    SendData(new { type = "usb_disconnected" });
                     break;
 
-                // WebRTC signaling — forwarded by server; no local processing needed
+                // WebRTC signaling
                 case "webrtc_offer":
                 case "webrtc_answer":
                 case "webrtc_ice":
+                    _ = WebRtcManager.HandleSignalingMessageAsync(msg);
                     break;
 
                 case "sms_received":
@@ -324,7 +453,7 @@ namespace NexLink.ViewModels
         private void SendSystemInfo()
         {
             // Delegate to consolidated BuildSystemState — all real values, one call
-            WsService.Send(SystemInfoService.BuildSystemState());
+            SendData(SystemInfoService.BuildSystemState());
         }
 
         private void SendWallpaper()
@@ -334,14 +463,14 @@ namespace NexLink.ViewModels
                 await Task.Delay(3000);
                 var (b64, _) = SystemInfoService.GetWallpaperBase64Cached();
                 if (!string.IsNullOrEmpty(b64) && IsConnected)
-                    WsService.Send(new { type = "wallpaper", data = b64 });
+                    SendData(new { type = "wallpaper", data = b64 });
             });
         }
 
         private void SendAppList()
         {
             var apps = SystemInfoService.GetInstalledApps();
-            WsService.Send(new { type = "app_list", apps });
+            SendData(new { type = "app_list", apps });
         }
 
         private void SendRunningApps()
@@ -349,13 +478,13 @@ namespace NexLink.ViewModels
             var apps = SystemInfoService.GetRunningApps();
             var perf = SystemInfoService.GetPerformanceMetrics();
             _lastRunningAppsHash = string.Join(",", apps.Select(a => a.Name)).GetHashCode();
-            WsService.Send(new { type = "state_update", running_apps = apps, performance = perf });
+            SendData(new { type = "state_update", running_apps = apps, performance = perf });
         }
 
         private void SendFileList(string path)
         {
             var files = SystemInfoService.BrowsePath(path);
-            WsService.Send(new { type = "file_list", files });
+            SendData(new { type = "file_list", files });
         }
 
         private void SendFile(string path)
@@ -373,7 +502,7 @@ namespace NexLink.ViewModels
                         int len = Math.Min(chunkSize, bytes.Length - offset);
                         var chunk = new byte[len];
                         Array.Copy(bytes, offset, chunk, 0, len);
-                        WsService.Send(new
+                        SendData(new
                         {
                             type = "file_chunk",
                             name = Path.GetFileName(path),
@@ -386,7 +515,7 @@ namespace NexLink.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    WsService.Send(new { type = "error", message = $"File transfer failed: {ex.Message}" });
+                    SendData(new { type = "error", message = $"File transfer failed: {ex.Message}" });
                 }
             });
         }
@@ -396,10 +525,15 @@ namespace NexLink.ViewModels
             _clipboardService.ClipboardChanged += content =>
             {
                 if (!string.IsNullOrEmpty(content))
-                    WsService.Send(new { type = "clipboard_push", content });
+                    SendData(new { type = "clipboard_push", content });
             };
             _clipboardService.Start();
         }
+
+        // ── Now Playing — fingerprint-gated, only sends when something changes ──
+        private string _lastNpFingerprint = "";
+        private bool   _lastNpIsPlaying   = false;
+        private double _lastNpPositionSentAt = -999; // position threshold: resend every 3s if playing
 
         private void StartNowPlayingPolling()
         {
@@ -407,24 +541,49 @@ namespace NexLink.ViewModels
             {
                 while (true)
                 {
-                    if (IsConnected)
+                    try
                     {
-                        var np = await MediaControlService.GetNowPlayingAsync();
-                        NowPlayingTitle  = np.Title;
-                        NowPlayingArtist = np.Artist;
-                        WsService.Send(new
+                        if (IsConnected)
                         {
-                            type             = "now_playing",
-                            title            = np.Title,
-                            artist           = np.Artist,
-                            album_art_base64 = np.AlbumArtBase64,
-                            isPlaying        = np.IsPlaying,
-                            position         = np.PositionSec,
-                            duration         = np.DurationSec,
-                            appSource        = np.AppSource,
-                            shuffleActive    = np.ShuffleActive,
-                            repeatMode       = np.RepeatMode,
-                        });
+                            var np = await MediaControlService.GetNowPlayingAsync();
+
+                            // Fingerprint: title + artist + isPlaying + shuffle + repeat
+                            var fingerprint = $"{np.Title}|{np.Artist}|{np.IsPlaying}|{np.ShuffleActive}|{np.RepeatMode}|{np.DurationSec:F0}";
+
+                            // Position: resend every ~3 seconds while playing to keep timeline sync
+                            bool positionDrifted = np.IsPlaying &&
+                                                   Math.Abs(np.PositionSec - _lastNpPositionSentAt) > 3.0;
+
+                            bool changed = fingerprint != _lastNpFingerprint || positionDrifted;
+
+                            if (changed)
+                            {
+                                _lastNpFingerprint    = fingerprint;
+                                _lastNpIsPlaying      = np.IsPlaying;
+                                _lastNpPositionSentAt = np.PositionSec;
+
+                                NowPlayingTitle  = np.Title;
+                                NowPlayingArtist = np.Artist;
+
+                                SendData(new
+                                {
+                                    type             = "now_playing",
+                                    title            = np.Title,
+                                    artist           = np.Artist,
+                                    album_art_base64 = np.AlbumArtBase64,
+                                    isPlaying        = np.IsPlaying,
+                                    position         = np.PositionSec,
+                                    duration         = np.DurationSec,
+                                    appSource        = np.AppSource,
+                                    shuffleActive    = np.ShuffleActive,
+                                    repeatMode       = np.RepeatMode,
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[NowPlaying] Poll error: {ex.Message}");
                     }
                     await Task.Delay(1000);
                 }
@@ -447,6 +606,18 @@ namespace NexLink.ViewModels
                 relayUrl = WebSocketService.RelayServerUrl,
             });
             QrCodeImage = QRCodeService.GenerateQRCode(payload, pixelSize: 8);
+        }
+
+        public void ClearMobileNotification(NotificationItem item)
+        {
+            if (item == null) return;
+            Notifications.Remove(item);
+            SendData(new { type = "clear_mobile_notification", key = item.Key });
+        }
+
+        private void ShowPopup(string title, string body)
+        {
+            (App.Current.MainWindow as MainWindow)?.ShowNotifPopup(title, body);
         }
 
         public void SetPairId(string pairId)

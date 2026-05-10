@@ -177,20 +177,30 @@ fun FileBrowserScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     }
 
     Scaffold(
-        containerColor = background,
+        containerColor = Color.Transparent,
         floatingActionButton = {
             if (!isSelectionMode && currentPath != "root") {
                 FloatingActionButton(
                     onClick = { showCreateDialog = true },
-                    containerColor = primary
+                    containerColor = primary,
+                    contentColor = Color.Black,
+                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
                 ) {
-                    Icon(Icons.Default.Add, "Create", tint = Color.Black)
+                    Icon(Icons.Default.Add, "Create")
                 }
             }
         }
     ) { paddingVals ->
-        Box(Modifier.fillMaxSize().padding(paddingVals)) {
-            Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(
+            Brush.verticalGradient(listOf(Color(0xFF0F0F1A), Color(0xFF05050A)))
+        )) {
+            // Glowing orb effects in the background
+            Box(Modifier.align(Alignment.TopStart).offset(x = (-50).dp, y = (-50).dp).size(200.dp)
+                .background(Brush.radialGradient(listOf(primary.copy(0.15f), Color.Transparent)), CircleShape))
+            Box(Modifier.align(Alignment.BottomEnd).offset(x = 50.dp, y = 50.dp).size(300.dp)
+                .background(Brush.radialGradient(listOf(Color(0xFF3B82F6).copy(0.1f), Color.Transparent)), CircleShape))
+
+            Column(Modifier.fillMaxSize().padding(paddingVals)) {
                 // ── Top bar ───────────────────────────────────────────────
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
@@ -234,22 +244,31 @@ fun FileBrowserScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         
                         LazyRow(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                             itemsIndexed(pathParts) { index, part ->
-                                Text(
-                                    part,
-                                    color = if (index == pathParts.lastIndex) onBackground else outline,
-                                    fontWeight = if (index == pathParts.lastIndex) FontWeight.Bold else FontWeight.Normal,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.clickable {
-                                        if (index < pathParts.lastIndex && currentPathStr != "root") {
-                                            val newPath = pathParts.take(index + 1).joinToString("\\") + if(index == 0 && part.endsWith(":")) "\\" else ""
-                                            pathStack.add(newPath)
-                                            isLoading = true
-                                            viewModel.browsePath(newPath)
+                                val isLast = index == pathParts.lastIndex
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 4.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isLast) primary.copy(0.15f) else Color.Transparent)
+                                        .clickable {
+                                            if (!isLast && currentPathStr != "root") {
+                                                val newPath = pathParts.take(index + 1).joinToString("\\") + if(index == 0 && part.endsWith(":")) "\\" else ""
+                                                pathStack.add(newPath)
+                                                isLoading = true
+                                                viewModel.browsePath(newPath)
+                                            }
                                         }
-                                    }.padding(horizontal = 4.dp, vertical = 8.dp)
-                                )
-                                if (index < pathParts.lastIndex) {
-                                    Icon(Icons.Default.ChevronRight, null, tint = outline, modifier = Modifier.size(16.dp))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        part,
+                                        color = if (isLast) primary else outline,
+                                        fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                }
+                                if (!isLast) {
+                                    Icon(Icons.Default.ChevronRight, null, tint = outline.copy(0.5f), modifier = Modifier.size(16.dp))
                                 }
                             }
                         }

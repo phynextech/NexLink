@@ -27,6 +27,7 @@ import com.phynex.NexLink.service.LinkBridgeNotificationService
 import com.phynex.NexLink.service.SmsReceiver
 import com.phynex.NexLink.service.PairingManager
 import com.phynex.NexLink.websocket.NexLinkSocketClient
+import com.phynex.NexLink.webrtc.WebRtcManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.io.File
@@ -81,6 +82,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Expose as webSocket for backwards compat with screens that reference it
     val webSocket get() = socketClient
+    
+    // WebRTC
+    val webRtcManager = WebRtcManager(application, socketClient)
 
     // Connection State
     val isConnected: StateFlow<Boolean> = socketClient.isConnected
@@ -498,6 +502,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _volume.value     = json.safeInt("volume", _volume.value)
             _brightness.value = json.safeInt("brightness", _brightness.value)
             _muted.value      = json.safeBool("muted")
+            
+        }
+
+        socketClient.addListener("webrtc_offer") { json ->
+            json.safeStr("sdp")?.let { webRtcManager.handleOffer(it) }
+        }
+        socketClient.addListener("webrtc_answer") { json ->
+            json.safeStr("sdp")?.let { webRtcManager.handleAnswer(it) }
+        }
+        socketClient.addListener("webrtc_ice") { json ->
+            val candidateStr = json.safeStr("candidate") ?: json.getAsJsonObject("candidate")?.toString()
+            candidateStr?.let { webRtcManager.handleIceCandidate(it) }
+        }
+
+        // system_state: full initial state from PC on connect — fan out to all flows
+        socketClient.addListener("system_state") { json ->
             // Wallpaper
             val wall = json.safeStr("wallpaper")
             if (!wall.isNullOrEmpty()) _wallpaperBase64.value = wall
@@ -508,8 +528,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (ov.isNotEmpty()) _osVersion.value = ov
         }
 
-        // state_update: lightweight 2s refresh — same fan-out but skips wallpaper/BT
+        // state_update: lightweight 2s refresh
         socketClient.addListener("state_update") { json ->
+            // Bluetooth
+            json.getAsJsonObject("bluetooth")?.let { bt ->
+                _bluetoothEnabled.value = bt.safeBool("enabled", _bluetoothEnabled.value)
+                val devList = bt.getAsJsonArray("connectedDevices")?.mapNotNull { d ->
+                    try {
+                        val obj = d.asJsonObject
+                        BluetoothDevice(
+                            name    = obj.safeStr("name", "Unknown"),
+                            address = obj.safeStr("address", ""),
+                            type    = obj.safeStr("type", "Bluetooth")
+                        )
+                    } catch (_: Exception) { null }
+                }
+                if (devList != null) {
+                    _bluetoothDevices.value = devList
+                }
+            }
             // WiFi
             json.getAsJsonObject("wifi")?.let { wifi ->
                 _wifiInfo.value = WifiInfo(
@@ -970,6 +1007,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.addListener("stop_mobile_screen") { _ ->
             stopMobileScreenStream()
         }
+        
+        socketClient.addListener("webrtc_offer") { json -> json.safeStr("sdp")?.let { webRtcManager.handleOffer(it) } }
+        socketClient.addListener("webrtc_answer") { json -> json.safeStr("sdp")?.let { webRtcManager.handleAnswer(it) } }
+        socketClient.addListener("webrtc_ice") { json -> json.safeStr("candidate")?.let { webRtcManager.handleIceCandidate(it) } }
     }
 
     private fun startMobileCameraStream(front: Boolean) {
@@ -1154,7 +1195,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun lockPC() = socketClient.sendMessage(mapOf("type" to "lock_pc"))
+    fun lockPCSimple() = socketClient.sendMessage(mapOf("type" to "lock_pc"))
 
     fun launchApp(appName: String, appPath: String) =
         socketClient.sendMessage(mapOf("type" to "launch_app", "appName" to appName, "appPath" to appPath))
@@ -1554,9 +1595,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.sendMessage(mapOf("type" to "clipboard_push", "content" to content))
     }
 
+    fun pushClipboardImage(base64: String) {
+        _clipboardItems.value = (_clipboardItems.value + ClipboardItem(content = "[Image]", isImage = true, source = "phone")).takeLast(50)
+        socketClient.sendMessage(mapOf("type" to "clipboard_push", "content" to "[Image]", "image" to base64))
+    }
+
     fun pullClipboard() = socketClient.sendMessage(mapOf("type" to "clipboard_pull"))
 
     fun startScreenStream() {
+        _isStreamingCamera.value = false
         _isStreamingScreen.value = true
         socketClient.sendMessage(mapOf("type" to "start_screen"))
     }
@@ -1635,6 +1682,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startCameraStream(enableMic: Boolean) {
         if (!isConnected.value) return
+        _isStreamingScreen.value = false
         _isStreamingCamera.value = true
         _cameraFrameBase64.value = null
         
@@ -1717,6 +1765,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── USB / touchpad events ─────────────────────────────────────────────
 
+    fun lockPC() {
+        if (!isConnected.value) return
+        socketClient.sendMessage(mapOf("type" to "lock_pc"))
+    }
+
+    fun powerCommand(action: String) {
+        if (!isConnected.value) return
+        socketClient.sendRaw("power_command", org.json.JSONObject().apply { put("action", action) })
+    }
+
     fun onUsbConnected() {
         _isUsbMode.value = true
         socketClient.sendMessage(mapOf("type" to "usb_connected"))
@@ -1727,8 +1785,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         socketClient.sendMessage(mapOf("type" to "usb_disconnected"))
     }
 
+    private var lastMouseTime = 0L
+    private var accDx = 0f
+    private var accDy = 0f
+    private var mouseJob: kotlinx.coroutines.Job? = null
+
     fun sendMouseMove(dx: Float, dy: Float) {
-        socketClient.sendMessage(mapOf("type" to "mouse_move", "dx" to dx, "dy" to dy))
+        if (!isConnected.value) return
+        accDx += dx
+        accDy += dy
+        
+        val now = System.currentTimeMillis()
+        if (now - lastMouseTime > 15) {
+            flushMouseMove()
+        } else if (mouseJob == null || mouseJob?.isActive == false) {
+            mouseJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(15)
+                flushMouseMove()
+            }
+        }
+    }
+
+    private fun flushMouseMove() {
+        if (accDx == 0f && accDy == 0f) return
+        socketClient.sendRaw("mouse_move", org.json.JSONObject().apply {
+            put("dx", accDx.toDouble())
+            put("dy", accDy.toDouble())
+        })
+        accDx = 0f
+        accDy = 0f
+        lastMouseTime = System.currentTimeMillis()
     }
 
     fun sendMouseTap() {
@@ -1745,5 +1831,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMouseScroll(dy: Float) {
         socketClient.sendMessage(mapOf("type" to "mouse_scroll", "dy" to dy))
+    }
+
+    fun sendMouseHScroll(dx: Float) {
+        socketClient.sendMessage(mapOf("type" to "mouse_scroll", "dx" to dx, "dy" to 0f, "horizontal" to true))
+    }
+
+    fun sendKeyPress(keyCode: String) {
+        if (!isConnected.value) return
+        socketClient.sendMessage(mapOf("type" to "key_press", "key" to keyCode))
     }
 }

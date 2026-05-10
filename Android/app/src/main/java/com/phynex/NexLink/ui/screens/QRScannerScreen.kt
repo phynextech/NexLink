@@ -46,7 +46,7 @@ import java.util.concurrent.Executors
  *   "deviceId":   "uuid-of-pc",
  *   "deviceName": "My Desktop",
  *   "pairId":     "server-pair-id",
- *   "relayUrl":   "https://nexlink-khhe.onrender.com"   (optional, default used if absent)
+ *   "relayUrl":   "https://nexlink-1.onrender.com"   (optional, default used if absent)
  * }
  *
  * The old ip/port/token fields are ignored.
@@ -189,7 +189,7 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                                                                             deviceId   = json.getString("deviceId"),
                                                                             deviceName = json.optString("deviceName", "PC"),
                                                                             pairId     = json.optString("pairId", ""),
-                                                                            relayUrl   = json.optString("relayUrl", "https://nexlink-khhe.onrender.com")
+                                                                            relayUrl   = json.optString("relayUrl", "https://nexlink-1.onrender.com")
                                                                         )
                                                                         scanned = true
                                                                         onScanned(device)
@@ -326,7 +326,7 @@ fun QRScannerScreen(onScanned: (DeviceInfo) -> Unit) {
                     ) {
                         Icon(Icons.Default.Cloud, null, tint = primary, modifier = Modifier.size(18.dp))
                         Text(
-                            "nexlink-khhe.onrender.com",
+                            "nexlink-1.onrender.com",
                             style  = MaterialTheme.typography.bodySmall,
                             color  = onSurfaceVariant
                         )

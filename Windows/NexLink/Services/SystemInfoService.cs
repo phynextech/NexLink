@@ -17,10 +17,34 @@ namespace NexLink.Services
 {
     public class SystemInfoService
     {
-        // ─── Lock PC ───
         [DllImport("user32.dll", SetLastError = true)]
         static extern bool LockWorkStation();
         public static void LockPC() => LockWorkStation();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool ExitWindowsEx(uint uFlags, uint dwReason);
+        
+        [DllImport("powrprof.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool SetSuspendState(bool bHibernate, bool bForce, bool bWakeupEventsDisabled);
+
+        public static void ExecutePowerCommand(string action)
+        {
+            switch (action.ToLower())
+            {
+                case "lock": LockWorkStation(); break;
+                case "sleep": SetSuspendState(false, true, true); break;
+                case "hibernate": SetSuspendState(true, true, true); break;
+                case "shutdown": System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", "/s /t 0") { CreateNoWindow = true, UseShellExecute = false }); break;
+                case "restart": System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown", "/r /t 0") { CreateNoWindow = true, UseShellExecute = false }); break;
+                case "signout": ExitWindowsEx(0, 0); break;
+            }
+        }
+
+        private static int _cachedVolume = -1;
+        private static DateTime _lastVolumeCheck = DateTime.MinValue;
+        private static int _cachedBrightness = -1;
+        private static DateTime _lastBrightnessCheck = DateTime.MinValue;
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -312,19 +336,23 @@ namespace NexLink.Services
 
         public static int GetVolume()
         {
+            if ((DateTime.Now - _lastVolumeCheck).TotalMilliseconds < 800 && _cachedVolume != -1)
+                return _cachedVolume;
+
             try
             {
                 using var enumerator = new MMDeviceEnumerator();
                 var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
                 float scalar = device.AudioEndpointVolume.MasterVolumeLevelScalar;
                 int vol = (int)Math.Round(scalar * 100f);
-                Console.WriteLine($"[GetVolume] scalar={scalar:F4} → {vol}%");
+                _cachedVolume = vol;
+                _lastVolumeCheck = DateTime.Now;
                 return vol;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[GetVolume] FAILED: {ex.Message}");
-                return -1; // -1 = failed, not a default
+                return _cachedVolume != -1 ? _cachedVolume : -1;
             }
         }
 
@@ -340,7 +368,8 @@ namespace NexLink.Services
                 foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
                     obj.InvokeMethod("WmiSetBrightness", new object[] { (uint)1, (byte)level });
-                    Console.WriteLine($"[SetBrightness] Set to {level}%");
+                    _cachedBrightness = level;
+                    _lastBrightnessCheck = DateTime.Now;
                     found = true;
                 }
                 if (!found)
@@ -354,6 +383,9 @@ namespace NexLink.Services
 
         public static int GetBrightness()
         {
+            if ((DateTime.Now - _lastBrightnessCheck).TotalMilliseconds < 2000 && _cachedBrightness != -1)
+                return _cachedBrightness;
+
             try
             {
                 using var searcher = new System.Management.ManagementObjectSearcher(
@@ -361,16 +393,15 @@ namespace NexLink.Services
                 foreach (System.Management.ManagementObject obj in searcher.Get())
                 {
                     int brightness = Convert.ToInt32(obj["CurrentBrightness"]);
-                    Console.WriteLine($"[GetBrightness] WMI returned {brightness}%");
+                    _cachedBrightness = brightness;
+                    _lastBrightnessCheck = DateTime.Now;
                     return brightness;
                 }
-                Console.WriteLine("[GetBrightness] WMI returned no results (desktop monitor?)");
-                return -1;
+                return _cachedBrightness != -1 ? _cachedBrightness : -1;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"[GetBrightness] FAILED: {ex.Message}");
-                return -1;
+                return _cachedBrightness != -1 ? _cachedBrightness : -1;
             }
         }
 
@@ -443,32 +474,28 @@ namespace NexLink.Services
             var devices = new List<object>();
             try
             {
-                // Try connected Bluetooth audio/input devices
-                var searcher = new System.Management.ManagementObjectSearcher(
-                    "SELECT * FROM Win32_PnPEntity WHERE PNPClass = 'Bluetooth' OR PNPClass = 'BTHLEDevice'");
-                foreach (System.Management.ManagementObject obj in searcher.Get())
-                {
-                    var name   = obj["Name"]?.ToString() ?? "";
-                    var status = obj["Status"]?.ToString();
-                    
-                    // Filter out generic Microsoft/Windows system drivers and services
-                    string lower = name.ToLower();
-                    if (string.IsNullOrEmpty(name) || status != "OK" ||
-                        lower.Contains("generic attribute") ||
-                        lower.Contains("enumerator") ||
-                        lower.Contains("bluetooth radio") ||
-                        lower.Contains("bluetooth device (") ||
-                        lower.Contains("avrcp transport") ||
-                        lower.EndsWith("service") ||
-                        lower.EndsWith("profile") ||
-                        lower.Contains("adapter") ||
-                        lower == "bluetooth")
-                        continue;
+                // Use Windows.Devices.Enumeration to get specifically connected Bluetooth devices
+                var selector = Windows.Devices.Bluetooth.BluetoothDevice.GetDeviceSelectorFromConnectionStatus(
+                    Windows.Devices.Bluetooth.BluetoothConnectionStatus.Connected);
+                
+                var deviceTask = Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(selector).AsTask();
+                deviceTask.Wait(2000); // Wait up to 2 seconds
 
-                    devices.Add(new { name = name, address = "Unknown", type = "Bluetooth", connected = true });
+                if (deviceTask.IsCompletedSuccessfully)
+                {
+                    foreach (var device in deviceTask.Result)
+                    {
+                        if (!string.IsNullOrEmpty(device.Name))
+                        {
+                            devices.Add(new { name = device.Name, address = device.Id, type = "Bluetooth", connected = true });
+                        }
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GetBluetoothDevices] Error: {ex.Message}");
+            }
             return devices;
         }
 
@@ -506,7 +533,6 @@ namespace NexLink.Services
                 var results = searcher.Get();
                 if (results.Count == 0)
                 {
-                    Console.WriteLine("[GetBatteryInfo] No Win32_Battery (desktop PC)");
                     // Fallback to SystemInformation for desktops
                     var ps = System.Windows.Forms.SystemInformation.PowerStatus;
                     bool onAc = ps.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
@@ -518,13 +544,11 @@ namespace NexLink.Services
                     int status = Convert.ToInt32(bat["BatteryStatus"]);
                     // BatteryStatus 2 = Fully Charged/AC, 6 = Charging
                     bool charging = status == 2 || status == 6;
-                    Console.WriteLine($"[GetBatteryInfo] {pct}% charging={charging} status={status}");
                     return (pct, charging, true);
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"[GetBatteryInfo] WMI failed: {ex.Message} — falling back to SystemInformation");
                 try
                 {
                     var ps = System.Windows.Forms.SystemInformation.PowerStatus;
@@ -533,7 +557,6 @@ namespace NexLink.Services
                     int level = hasBattery ? (int)(ps.BatteryLifePercent * 100) : 100;
                     if (level > 100) level = 100;
                     bool charging = ps.PowerLineStatus == System.Windows.Forms.PowerLineStatus.Online;
-                    Console.WriteLine($"[GetBatteryInfo] Fallback: {level}% charging={charging} hasBat={hasBattery}");
                     return (level, charging, hasBattery);
                 }
                 catch { }
@@ -583,15 +606,18 @@ namespace NexLink.Services
             var vol                           = GetVolume();
             var bri                           = GetBrightness();
             var muted                         = GetMuted();
+            var btDevices                     = GetBluetoothDevices();
+            var btEnabled                     = GetBluetoothEnabled();
 
             return new
             {
                 type       = "state_update",
                 volume     = vol,
-                muted       = muted,
+                muted      = muted,
                 brightness = bri,
                 wifi       = new { connected = wifiConn, ssid, strength },
                 battery    = new { percentage = batLevel, charging, hasBattery = hasBatt },
+                bluetooth  = new { enabled = btEnabled, connectedDevices = btDevices },
             };
         }
 

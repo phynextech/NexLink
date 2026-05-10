@@ -3,7 +3,8 @@ const { verifySocketToken } = require('../middleware/auth');
 const logger = require('../config/logger');
 const { handleDeviceConnect, handleDeviceDisconnect, cleanupStaleSockets } = require('./deviceHandler');
 const { registerRelayEvents } = require('./relayHandler');
-const { registerSignalingEvents } = require('./signalingHandler');
+const { registerSignalingEvents, cleanupIceQueues } = require('./signalingHandler');
+const { registerChatEvents, cleanupTransfers } = require('./chatHandler');
 
 const initSocketIO = (server) => {
   const io = new Server(server, {
@@ -24,6 +25,7 @@ const initSocketIO = (server) => {
     handleDeviceConnect(io, socket);
     registerRelayEvents(io, socket);
     registerSignalingEvents(io, socket);
+    registerChatEvents(io, socket);
 
     socket.on('disconnect_device', () => handleDeviceDisconnect(io, socket));
     socket.on('disconnect', () => handleDeviceDisconnect(io, socket));
@@ -32,6 +34,12 @@ const initSocketIO = (server) => {
 
   // Start stale socket cleanup routine
   cleanupStaleSockets(io);
+
+  // Start ICE candidate queue cleanup
+  cleanupIceQueues(io);
+
+  // Start stale transfer cleanup
+  cleanupTransfers();
 
   return io;
 };

@@ -22,6 +22,10 @@ import com.phynex.NexLink.ui.screens.*
 import com.phynex.NexLink.ui.theme.background
 import com.phynex.NexLink.ui.theme.LinkBridgeTheme
 import com.phynex.NexLink.viewmodel.MainViewModel
+import com.phynex.NexLink.viewmodel.ChatViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -41,6 +45,27 @@ class MainActivity : ComponentActivity() {
                 if (hash != lastClipHash) {
                     lastClipHash = hash
                     vm.pushClipboard(text)
+                }
+            } else if (item?.uri != null) {
+                val hash = item.uri.hashCode()
+                if (hash != lastClipHash) {
+                    lastClipHash = hash
+                    vm.viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        try {
+                            val bitmap = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(contentResolver, item.uri))
+                            } else {
+                                @Suppress("DEPRECATION")
+                                android.provider.MediaStore.Images.Media.getBitmap(contentResolver, item.uri)
+                            }
+                            val out = java.io.ByteArrayOutputStream()
+                            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, out)
+                            val base64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+                            vm.pushClipboardImage(base64)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {}
@@ -130,12 +155,46 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val viewModel: MainViewModel = viewModel()
+            val chatVm: ChatViewModel    = viewModel()
             val themeMode by viewModel.themeMode.collectAsState()
             val primaryColor by viewModel.primaryColor.collectAsState()
 
+            // Wire ChatViewModel send function to socket client
+            LaunchedEffect(Unit) {
+                chatVm.socketSend = { event, data -> viewModel.socketClient.sendRaw(event, data) }
+
+                val CHAT_EVENTS = listOf(
+                    "chat_message",
+                    "chat_file_offer", "chat_file_accept", "chat_file_reject",
+                    "chat_file_chunk", "chat_file_ack", "chat_file_done",
+                    "chat_file_pause", "chat_file_resume", "chat_file_cancel",
+                    "chat_typing", "chat_delivered", "chat_read",
+                    "chat_reaction", "chat_history", "chat_clipboard",
+                    "chat_screenshot", "chat_star",
+                    "peer_online", "peer_offline",
+                )
+                CHAT_EVENTS.forEach { event ->
+                    viewModel.socketClient.addListener(event) { data ->
+                        chatVm.handleEvent(event, data)
+                        // When PC comes online, immediately request history
+                        if (event == "peer_online") {
+                            chatVm.requestHistory()
+                        }
+                    }
+                }
+
+                // Set roomKey for local persistence (userId:deviceId format)
+                viewModel.socketClient.isConnected.collect { connected ->
+                    if (connected) {
+                        val device = viewModel.connectedDevice.value ?: return@collect
+                        chatVm.setRoomKey("${device.userId}:${device.deviceId}")
+                    }
+                }
+            }
+
             LinkBridgeTheme(themeMode = themeMode, primaryColorName = primaryColor) {
                 Surface(modifier = Modifier.fillMaxSize(), color = background) {
-                    LinkBridgeApp(viewModel)
+                    LinkBridgeApp(viewModel, chatVm)
                 }
             }
         }
@@ -207,7 +266,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun LinkBridgeApp(viewModel: MainViewModel) {
+fun LinkBridgeApp(viewModel: MainViewModel, chatVm: ChatViewModel) {
     val navController = rememberNavController()
 
     NavHost(
@@ -253,7 +312,8 @@ fun LinkBridgeApp(viewModel: MainViewModel) {
                 onNavigateToExtendScreen = { navController.navigate(Screen.EXTEND_SCREEN.route) },
                 onNavigateToFileBrowser  = { navController.navigate(Screen.FILE_BROWSER.route) },
                 onNavigateToTrackpad     = { navController.navigate(Screen.TRACKPAD.route) },
-                onNavigateToSettings     = { navController.navigate(Screen.SETTINGS.route) }
+                onNavigateToSettings     = { navController.navigate(Screen.SETTINGS.route) },
+                onNavigateToChat         = { navController.navigate(Screen.CHAT.route) },
             )
         }
 
@@ -290,6 +350,13 @@ fun LinkBridgeApp(viewModel: MainViewModel) {
                 viewModel = viewModel, 
                 onBack = { navController.popBackStack() },
                 onNavigateToQrScanner = { navController.navigate(Screen.QR_SCANNER.route) }
+            )
+        }
+
+        composable(Screen.CHAT.route) {
+            ChatScreen(
+                chatVm = chatVm,
+                onBack = { navController.popBackStack() },
             )
         }
     }

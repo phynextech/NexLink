@@ -19,7 +19,7 @@ namespace NexLink.Services
     /// </summary>
     public class PairingService
     {
-        private const string RelayBaseUrl = "https://nexlink-khhe.onrender.com";
+        private const string RelayBaseUrl = "https://nexlink-1.onrender.com";
         private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(15) };
 
         // Settings keys

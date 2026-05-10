@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using NexLink.Models;
 using NexLink.Services;
@@ -20,6 +21,8 @@ namespace NexLink
     {
         private readonly MainViewModel _vm = new();
         private readonly List<ClipboardItem> _clipboardItems = new();
+        private readonly System.Collections.ObjectModel.ObservableCollection<NotificationItem> _notifications = new();
+        private FileTransferService? _ftService;
 
         // Cloud identity
         private string _userId   = "";
@@ -59,6 +62,10 @@ namespace NexLink
             StartBroadcastTimer();
             StartWallpaperTimer();
             StartClipboardWatcher();
+
+            // Init FileTransferService and wire ChatView
+            _ftService = new FileTransferService(_vm.WsService);
+            ChatViewControl.Initialize(_vm.WsService, _ftService);
         }
 
         private async Task InitRelayPairingAsync()
@@ -67,6 +74,9 @@ namespace NexLink
             {
                 // Load or create persistent device identity for this PC
                 (_userId, _deviceId) = PairingService.LoadOrCreateIdentity();
+                
+                // Start UDP Multicast for LAN Discovery
+                _vm.StartLanDiscovery(_deviceId);
 
                 // Show QR immediately with empty pairId so user sees something
                 GenerateQR();
@@ -106,12 +116,15 @@ namespace NexLink
                     PhoneNameLabel.Text = _vm.PhoneName;
                     SetStatusConnected(true);
                     StatusBar.Text = "Phone connected";
+                    ChatViewControl.SetPeerOnline(true);
+                    ChatViewControl.RequestHistory();
                     // Immediately send ALL real system values
                     Task.Run(() => SendSystemState());
                 });
 
                 _vm.WsService.PhoneDisconnected += () =>
                 {
+                    ChatViewControl.SetPeerOnline(false);
                     // Wait 8 seconds to allow silent auto-reconnect
                     Task.Delay(8000).ContinueWith(_ =>
                     {
@@ -128,21 +141,32 @@ namespace NexLink
                     });
                 };
 
+                var CHAT_EVENTS = new HashSet<string>{
+                    "chat_message","chat_file_offer","chat_file_accept","chat_file_reject",
+                    "chat_file_chunk","chat_file_ack","chat_file_done",
+                    "chat_file_pause","chat_file_resume","chat_file_cancel",
+                    "chat_typing","chat_delivered","chat_read",
+                    "chat_reaction","chat_history","chat_history_req",
+                    "chat_voice_message","chat_clipboard","chat_screenshot","chat_star",
+                    "peer_online","peer_offline",
+                };
+
                 _vm.WsService.MessageReceived += msg => Dispatcher.Invoke(() =>
                 {
                     var type = msg["type"]?.ToString() ?? "";
+
+                    // Route all chat events to ChatView
+                    if (CHAT_EVENTS.Contains(type))
+                    {
+                        ChatViewControl.HandleIncomingEvent(type, msg);
+                        if (type != "peer_online" && type != "peer_offline") return;
+                    }
+
                     switch (type)
                     {
                         case "notification":
-                            var notif = new NotificationItem
-                            {
-                                App   = msg["app"]?.ToString()   ?? "",
-                                Title = msg["title"]?.ToString() ?? "",
-                                Body  = msg["body"]?.ToString()  ?? "",
-                                Timestamp = DateTime.Now
-                            };
-                            _vm.Notifications.Insert(0, notif);
-                            NotifList.ItemsSource = _vm.Notifications;
+                            // Handled by MainViewModel.HandleMessage which updates its ObservableCollection.
+                            // We just update the counter on the dashboard if needed.
                             NotifCount.Text = _vm.Notifications.Count.ToString();
                             break;
 
@@ -256,19 +280,24 @@ namespace NexLink
                             var ringerMode  = msg["ringerMode"]?.ToObject<int>() ?? 2;
                             var phoneVol    = msg["phoneVolume"]?.ToObject<int>() ?? 0;
                             var ringerVol   = msg["ringerVolume"]?.ToObject<int>() ?? 0;
+                            var brightness  = msg["brightness"]?.ToObject<int>() ?? 50;
                             var notifCount  = msg["notifCount"]?.ToObject<int>() ?? 0;
+
                             // Ringer mode label
                             var ringerLabel = ringerMode switch { 0 => "🔇 Silent", 1 => "📳 Vibrate", _ => "🔔 Ring" };
-                            MobileRingerLabel.Text    = ringerLabel;
-                            MobileVolumeLabel.Text    = $"{phoneVol}%";
-                            MobileRingerVolLabel.Text = $"{ringerVol}%";
-                            MobileNotifCountLabel.Text = notifCount.ToString();
+                            MobileRingerLabel.Text     = ringerLabel;
+                            MobileVolumeLabel.Text     = $"{phoneVol}%";
+                            MobileRingerVolLabel.Text  = $"{ringerVol}%";
+                            MobileBrightnessLabel.Text = $"{brightness}%";
+                            MobileNotifCountLabel.Text  = notifCount.ToString();
                             
                             // Only update slider if user isn't currently dragging it
                             if (!MobileMediaVolSlider.IsMouseCaptureWithin)
                                 MobileMediaVolSlider.Value = phoneVol;
                             if (!MobileRingerVolSlider.IsMouseCaptureWithin)
                                 MobileRingerVolSlider.Value = ringerVol;
+                            if (!MobileBrightnessSlider.IsMouseCaptureWithin)
+                                MobileBrightnessSlider.Value = brightness;
 
                             // Highlight the active ringer button
                             RingerSilentBtn.Opacity  = ringerMode == 0 ? 1.0 : 0.4;
@@ -276,17 +305,21 @@ namespace NexLink
                             RingerRingBtn.Opacity    = ringerMode == 2 ? 1.0 : 0.4;
                             break;
 
+
+
                         case "volume":
                             var newVol = msg["level"]?.ToObject<int>() ?? -1;
                             if (newVol >= 0)
                             {
-                                SystemInfoService.SetVolume(newVol);
-                                // Read back ACTUAL volume after setting (hardware may round)
-                                var actualVol = SystemInfoService.GetVolume();
-                                _lastKnownVolume = actualVol;  // update tracker to prevent re-push
-                                ShowWindowsOsd("🔊", $"Volume: {actualVol}%");
-                                // Confirm back with the real hardware-verified value
-                                _vm.WsService.Send(new { type = "volume_ack", level = actualVol });
+                                Task.Run(() => {
+                                    SystemInfoService.SetVolume(newVol);
+                                    var actualVol = SystemInfoService.GetVolume();
+                                    _lastKnownVolume = actualVol;
+                                    Dispatcher.Invoke(() => {
+                                        ShowWindowsOsd("🔊", $"Volume: {actualVol}%");
+                                        _vm.SendData(new { type = "volume_ack", level = actualVol });
+                                    });
+                                });
                             }
                             break;
 
@@ -294,25 +327,29 @@ namespace NexLink
                             var newBri = msg["level"]?.ToObject<int>() ?? -1;
                             if (newBri >= 0)
                             {
-                                SystemInfoService.SetBrightness(newBri);
-                                // Read back ACTUAL brightness after setting
-                                var actualBri = SystemInfoService.GetBrightness();
-                                if (actualBri < 0) actualBri = newBri; // if WMI fails, trust the request
-                                _lastKnownBrightness = actualBri;  // update tracker to prevent re-push
-                                ShowWindowsOsd("☀", $"Brightness: {actualBri}%");
-                                // Confirm back with the real hardware-verified value
-                                _vm.WsService.Send(new { type = "brightness_ack", level = actualBri });
+                                Task.Run(() => {
+                                    SystemInfoService.SetBrightness(newBri);
+                                    var actualBri = SystemInfoService.GetBrightness();
+                                    if (actualBri < 0) actualBri = newBri;
+                                    _lastKnownBrightness = actualBri;
+                                    Dispatcher.Invoke(() => {
+                                        ShowWindowsOsd("☀", $"Brightness: {actualBri}%");
+                                        _vm.SendData(new { type = "brightness_ack", level = actualBri });
+                                    });
+                                });
                             }
                             break;
 
                         case "media_control":
                             var action = msg["action"]?.ToString() ?? "";
-                            if (action == "shuffle")
-                                _ = MediaControlService.ToggleShuffleAsync();
-                            else if (action == "repeat")
-                                _ = MediaControlService.ToggleRepeatAsync();
-                            else
-                                MediaControlService.SendMediaKey(action);
+                            Task.Run(() => {
+                                if (action == "shuffle")
+                                    _ = MediaControlService.ToggleShuffleAsync();
+                                else if (action == "repeat")
+                                    _ = MediaControlService.ToggleRepeatAsync();
+                                else
+                                    MediaControlService.SendMediaKey(action);
+                            });
                             break;
 
                         case "media_seek":
@@ -333,12 +370,12 @@ namespace NexLink
                                         ["path"]  = browsePath,
                                         ["files"] = Newtonsoft.Json.Linq.JArray.FromObject(files)
                                     };
-                                    _vm.WsService.SendRaw(fileJson.ToString());
+                                    _vm.SendDataRaw(fileJson.ToString());
                                 }
                                 catch (Exception ex)
                                 {
                                     Console.WriteLine($"[Browse] Error: {ex.Message}");
-                                    _vm.WsService.Send(new { type = "file_list", path = browsePath, files = Array.Empty<object>() });
+                                    _vm.SendData(new { type = "file_list", path = browsePath, files = Array.Empty<object>() });
                                 }
                             });
                             break;
@@ -348,7 +385,7 @@ namespace NexLink
                             Task.Run(() =>
                             {
                                 var preview = SystemInfoService.GetFilePreviewBase64(previewPath);
-                                _vm.WsService.Send(new { type = "file_preview_data", path = previewPath, data = preview ?? "" });
+                                _vm.SendData(new { type = "file_preview_data", path = previewPath, data = preview ?? "" });
                             });
                             break;
 
@@ -356,7 +393,7 @@ namespace NexLink
                             var dlPath = msg["path"]?.ToString() ?? "";
                             _ = Task.Run(() => SystemInfoService.SendFileChunkedAsync(dlPath, chunk =>
                             {
-                                _vm.WsService.SendRaw(chunk.ToString());
+                                _vm.SendDataRaw(chunk.ToString());
                             }));
                             break;
 
@@ -431,15 +468,9 @@ namespace NexLink
         // ─── 2-Second Broadcast Timer ───
         private void StartBroadcastTimer()
         {
-            /*
-            _broadcastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            _broadcastTimer.Tick += (_, _) =>
-            {
-                if (_vm.WsService.IsPhoneConnected)
-                    BroadcastSystemInfo();
-            };
+            _broadcastTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _broadcastTimer.Tick += (s, e) => BroadcastSystemInfo();
             _broadcastTimer.Start();
-            */
         }
 
         /// <summary>
@@ -473,22 +504,22 @@ namespace NexLink
 
                 // ── 1) Bundled system_state (works if relay has it in event list) ──
                 var state = SystemInfoService.BuildSystemState();
-                _vm.WsService.Send(state);
+                _vm.SendData(state);
 
                 // ── 2) Individual events (guaranteed to relay — these are in the OLD event list) ──
-                _vm.WsService.Send(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
-                _vm.WsService.Send(new { type = "battery_info", level = batPct, isCharging = charging });
-                _vm.WsService.Send(new { type = "bt_info",      devices = btDevices, bluetoothEnabled = btEnabled });
-                _vm.WsService.Send(new { type = "volume",       level = vol });
-                _vm.WsService.Send(new { type = "brightness",   level = bri });
+                _vm.SendData(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
+                _vm.SendData(new { type = "battery_info", level = batPct, isCharging = charging });
+                _vm.SendData(new { type = "bt_info",      devices = btDevices, bluetoothEnabled = btEnabled });
+                _vm.SendData(new { type = "volume",       level = vol });
+                _vm.SendData(new { type = "brightness",   level = bri });
                 if (!string.IsNullOrEmpty(wallB64))
-                    _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
+                    _vm.SendData(new { type = "wallpaper", data = wallB64 });
 
                 Console.WriteLine($"[SendSystemState] Sent all: vol={vol} bri={bri} wifi='{ssid}' bat={batPct}% wall={(!string.IsNullOrEmpty(wallB64) ? "yes" : "no")}");
 
                 // ── 3) Media state ──
                 var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
-                _vm.WsService.Send(new
+                _vm.SendData(new
                 {
                     type             = "now_playing",
                     title            = np.Title,
@@ -530,14 +561,14 @@ namespace NexLink
                     // These are guaranteed to be relayed (in the server's original event list)
                     if (ssid != _lastKnownSsid || batPct != _lastKnownBattery || charging != _lastKnownCharging || _lastKnownBattery < 0)
                     {
-                        _vm.WsService.Send(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
-                        _vm.WsService.Send(new { type = "battery_info", level = batPct, isCharging = charging });
+                        _vm.SendData(new { type = "wifi_info",    ssid, strength = sig, connected = wifiConn });
+                        _vm.SendData(new { type = "battery_info", level = batPct, isCharging = charging });
                     }
 
                     // ── Volume: push as individual event when changed ──
                     if (currentVol >= 0 && currentVol != _lastKnownVolume)
                     {
-                        _vm.WsService.Send(new { type = "volume", level = currentVol });
+                        _vm.SendData(new { type = "volume", level = currentVol });
                         if (_lastKnownVolume >= 0)
                             Console.WriteLine($"[Broadcast] PC volume changed: {_lastKnownVolume}% → {currentVol}%");
                     }
@@ -546,7 +577,7 @@ namespace NexLink
                     // ── Brightness: push as individual event when changed ──
                     if (currentBri >= 0 && currentBri != _lastKnownBrightness)
                     {
-                        _vm.WsService.Send(new { type = "brightness", level = currentBri });
+                        _vm.SendData(new { type = "brightness", level = currentBri });
                         if (_lastKnownBrightness >= 0)
                             Console.WriteLine($"[Broadcast] PC brightness changed: {_lastKnownBrightness}% → {currentBri}%");
                     }
@@ -560,16 +591,16 @@ namespace NexLink
 
                     // Also send bundled state_update (for future when server supports it)
                     var update = SystemInfoService.BuildStateUpdate();
-                    _vm.WsService.Send(update);
+                    _vm.SendData(update);
 
                     // Bluetooth (always send — already in relay list)
                     var btDevices = SystemInfoService.GetBluetoothDevices();
                     var btEnabled = SystemInfoService.GetBluetoothEnabled();
-                    _vm.WsService.Send(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
+                    _vm.SendData(new { type = "bt_info", devices = btDevices, bluetoothEnabled = btEnabled });
 
                     // Media now-playing
                     var np = MediaControlService.GetNowPlayingAsync().GetAwaiter().GetResult();
-                    _vm.WsService.Send(new
+                    _vm.SendData(new
                     {
                         type             = "now_playing",
                         title            = np.Title,
@@ -606,7 +637,7 @@ namespace NexLink
                     {
                         var (wallB64, _) = SystemInfoService.GetWallpaperBase64Cached();
                         if (!string.IsNullOrEmpty(wallB64))
-                            _vm.WsService.Send(new { type = "wallpaper", data = wallB64 });
+                            _vm.SendData(new { type = "wallpaper", data = wallB64 });
                     }
                     catch (Exception ex)
                     {
@@ -633,7 +664,7 @@ namespace NexLink
                         if (hash != _lastClipboardHash)
                         {
                             _lastClipboardHash = hash;
-                            _vm.WsService.Send(new { type = "clipboard_sync", content = text });
+                            _vm.SendData(new { type = "clipboard_sync", content = text });
                         }
                     }
                     else if (System.Windows.Clipboard.ContainsImage())
@@ -651,7 +682,7 @@ namespace NexLink
                                 using var ms = new System.IO.MemoryStream();
                                 encoder.Save(ms);
                                 var b64 = Convert.ToBase64String(ms.ToArray());
-                                _vm.WsService.Send(new { type = "clipboard_sync", content = "[Image]", image = b64 });
+                                _vm.SendData(new { type = "clipboard_sync", content = "[Image]", image = b64 });
                             }
                         }
                     }
@@ -716,6 +747,10 @@ namespace NexLink
             });
         }
 
+
+        /// <summary>Called by ChatView to show a file-received toast.</summary>
+        public void ShowNotificationPopup(string title, string body)
+            => ShowWindowsOsd(title.Split(' ')[0], $"{title.Split(' ', 2).LastOrDefault()}: {body}");
 
         private void GenerateQR()
         {
@@ -1037,18 +1072,6 @@ namespace NexLink
         }
 
         // ─── Quick actions ───
-        private void LockBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var vm = DataContext as ViewModels.MainViewModel;
-            vm?.WsService?.Send(new { type = "lock_phone" });
-        }
-
-        private void CameraBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var vm = DataContext as ViewModels.MainViewModel;
-            string lens = (UseFrontCamera.IsChecked == true) ? "front" : "back";
-            vm?.WsService?.Send(new { type = "open_camera", lens = lens });
-        }
         private void MuteBtn_Click(object sender, RoutedEventArgs e) => SystemInfoService.SetVolume(0);
         private void MusicBtn_Click(object sender, RoutedEventArgs e) => MediaControlService.SendMediaKey("play_pause");
 
@@ -1114,8 +1137,45 @@ namespace NexLink
         private void ClearNotifs_Click(object sender, RoutedEventArgs e)
         {
             _vm.Notifications.Clear();
-            NotifList.ItemsSource = _vm.Notifications;
             NotifCount.Text = "0";
+            _vm.WsService.Send(new { type = "clear_all_notifications" });
+        }
+
+        private void DismissNotif_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is NotificationItem item)
+            {
+                _vm.ClearMobileNotification(item);
+                NotifCount.Text = _vm.Notifications.Count.ToString();
+            }
+        }
+
+        public void ShowNotifPopup(string title, string body)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                PopupTitle.Text = title;
+                PopupBody.Text = body;
+                NotifPopup.Visibility = Visibility.Visible;
+
+                // Auto-hide after 5 seconds
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+                timer.Tick += (s, ev) => { NotifPopup.Visibility = Visibility.Collapsed; timer.Stop(); };
+                timer.Start();
+            });
+        }
+
+        private void ClosePopup_Click(object sender, RoutedEventArgs e)
+        {
+            NotifPopup.Visibility = Visibility.Collapsed;
+        }
+
+        public void UpdateMobileWallpaper(BitmapImage bmp)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                MobileWallpaperImage.Source = bmp;
+            });
         }
 
         // ─── Photos refresh ───
@@ -1153,6 +1213,28 @@ namespace NexLink
                 _vm.WsService.Send(new { type = "mobile_ringer_volume", level = (int)slider.Value });
         }
 
+        private void MobileBrightness_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            var slider = sender as Slider;
+            if (slider != null)
+                _vm.WsService.Send(new { type = "mobile_brightness", level = (int)slider.Value });
+        }
+
+        // ─── Precision Controls (±2%) ───
+        private void VolDecrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileMediaVolSlider, -2, "mobile_volume");
+        private void VolIncrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileMediaVolSlider, 2, "mobile_volume");
+        private void RingerVolDecrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileRingerVolSlider, -2, "mobile_ringer_volume");
+        private void RingerVolIncrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileRingerVolSlider, 2, "mobile_ringer_volume");
+        private void BrightnessDecrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileBrightnessSlider, -2, "mobile_brightness");
+        private void BrightnessIncrement_Click(object sender, RoutedEventArgs e) => AdjustSlider(MobileBrightnessSlider, 2, "mobile_brightness");
+
+        private void AdjustSlider(Slider slider, int delta, string eventType)
+        {
+            double newVal = Math.Clamp(slider.Value + delta, 0, 100);
+            slider.Value = newVal;
+            _vm.WsService.Send(new { type = eventType, level = (int)newVal });
+        }
+
         // ─── Remote Overrides ───
         private void LockBtn_Click(object sender, RoutedEventArgs e)
             => _vm.WsService.Send(new { type = "lock_phone" });
@@ -1168,9 +1250,14 @@ namespace NexLink
             var win = new StreamWindow(_vm, "screen");
             win.Show();
         }
+
+        private void Settings_Click(object sender, RoutedEventArgs e)
+        {
+            var settingsWindow = new SettingsWindow { Owner = this };
+            settingsWindow.ShowDialog();
+        }
     }
 
-    // Clipboard data item for the list
     public class ClipboardItem
     {
         public string Content { get; set; } = "";

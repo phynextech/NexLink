@@ -27,9 +27,9 @@ namespace NexLink.Services
                 {
                     _capture.Read(frame);
                     if (frame.Empty()) continue;
-                    var resized = frame.Resize(new Size(640, 480));
+                    var resized = frame.Resize(new Size(480, 360)); // 480p is sufficient for mobile preview
                     Cv2.ImEncode(".jpg", resized, out var buf,
-                        new ImageEncodingParam(ImwriteFlags.JpegQuality, 50));
+                        new ImageEncodingParam(ImwriteFlags.JpegQuality, 40));
                     onFrame(Convert.ToBase64String(buf));
                     Thread.Sleep(intervalMs);
                 }

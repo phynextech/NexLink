@@ -93,9 +93,10 @@ namespace NexLink.Models
 
     public class NotificationItem
     {
-        public string App { get; set; } = "";
+        public string AppName { get; set; } = "";
         public string Title { get; set; } = "";
         public string Body { get; set; } = "";
+        public string Key { get; set; } = "";
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 

@@ -25,11 +25,15 @@ namespace NexLink.Helpers
             => throw new NotImplementedException();
     }
 
-    /// <summary>Converts int → Visibility (0=Collapsed, >0=Visible)</summary>
+    /// <summary>Converts int/string → Visibility (0/empty=Collapsed, else Visible)</summary>
     public class NonZeroToVisibilityConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => value is int i && i > 0 ? Visibility.Visible : Visibility.Collapsed;
+        {
+            if (value is int i && i > 0) return Visibility.Visible;
+            if (value is string s && !string.IsNullOrEmpty(s)) return Visibility.Visible;
+            return Visibility.Collapsed;
+        }
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotImplementedException();
     }
@@ -41,6 +45,53 @@ namespace NexLink.Helpers
             => value is true ? Visibility.Visible : Visibility.Collapsed;
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => value is Visibility.Visible;
+    }
+
+    /// <summary>Converts bool → Visibility (inverted: false=Visible)</summary>
+    public class InverseBoolToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is true ? Visibility.Collapsed : Visibility.Visible;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is Visibility.Collapsed;
+    }
+
+    /// <summary>Converts bool → Thickness for chat bubble margin (sent=right, received=left)</summary>
+    public class ChatBubbleMarginConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is true ? new Thickness(60, 2, 12, 2) : new Thickness(12, 2, 60, 2);
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>TransferState.Transferring → Visible</summary>
+    public class IsTransferringConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is NexLink.Models.TransferState s && s == NexLink.Models.TransferState.Transferring
+               ? Visibility.Visible : Visibility.Collapsed;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>TransferState.Complete → Visible</summary>
+    public class IsCompleteConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is NexLink.Models.TransferState s && s == NexLink.Models.TransferState.Complete
+               ? Visibility.Visible : Visibility.Collapsed;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
+
+    /// <summary>string? path → Visible if file exists on disk</summary>
+    public class HasLocalFileConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is string p && File.Exists(p) ? Visibility.Visible : Visibility.Collapsed;
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
     }
 
     /// <summary>Utility helpers</summary>

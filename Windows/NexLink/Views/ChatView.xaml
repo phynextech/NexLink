@@ -1,0 +1,427 @@
+<UserControl x:Class="NexLink.Views.ChatView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:NexLink.Models"
+             xmlns:helpers="clr-namespace:NexLink.Helpers"
+             Background="Transparent">
+    <UserControl.Resources>
+        <!-- ── Converters ───────────────────────────────────── -->
+        <BooleanToVisibilityConverter x:Key="BoolVis"/>
+        <helpers:BoolToAlignmentConverter     x:Key="BoolToAlignment"/>
+        <helpers:NonZeroToVisibilityConverter x:Key="NonZeroVisibility"/>
+        <helpers:IsCompleteConverter          x:Key="IsComplete"/>
+        <helpers:IsTransferringConverter      x:Key="IsTransferring"/>
+        <helpers:BoolToVisibilityConverter    x:Key="BoolToVis"/>
+        <helpers:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+
+        <!-- ── Telegram Background Pattern ─────────────────── -->
+        <DrawingBrush x:Key="TelegramBg" Viewport="0,0,60,60" ViewportUnits="Absolute" TileMode="Tile">
+            <DrawingBrush.Drawing>
+                <DrawingGroup Opacity="0.04">
+                    <GeometryDrawing Brush="#4FC3F7">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <EllipseGeometry Center="10,10" RadiusX="3" RadiusY="3"/>
+                                <EllipseGeometry Center="40,30" RadiusX="2" RadiusY="2"/>
+                                <EllipseGeometry Center="25,50" RadiusX="4" RadiusY="4"/>
+                                <RectangleGeometry Rect="50,5,6,6"/>
+                                <PathGeometry Figures="M 5,40 L 15,50 L 5,60 Z"/>
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <!-- ── Sent Bubble (Telegram blue right) ────────────── -->
+        <ControlTemplate x:Key="SentBubbleTemplate" TargetType="ContentControl">
+            <Grid Margin="64,1,12,1" HorizontalAlignment="Right">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <!-- Tail -->
+                <Path Data="M 0,0 L -8,8 L 0,16 Z"
+                      Fill="#2B82CC"
+                      HorizontalAlignment="Right" VerticalAlignment="Top"
+                      Margin="0,2,-6,0"/>
+                <Border CornerRadius="14,2,14,14"
+                        Padding="12,8,12,6"
+                        Background="#2B82CC"
+                        MaxWidth="480"
+                        Effect="{x:Null}">
+                    <ContentPresenter/>
+                </Border>
+            </Grid>
+        </ControlTemplate>
+
+        <!-- ── Received Bubble (dark left) ──────────────────── -->
+        <ControlTemplate x:Key="ReceivedBubbleTemplate" TargetType="ContentControl">
+            <Grid Margin="12,1,64,1" HorizontalAlignment="Left">
+                <!-- Tail -->
+                <Path Data="M 0,0 L 8,8 L 0,16 Z"
+                      Fill="#182533"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      Margin="-6,2,0,0"/>
+                <Border CornerRadius="2,14,14,14"
+                        Padding="12,8,12,6"
+                        Background="#182533"
+                        BorderBrush="#1E3A52" BorderThickness="1"
+                        MaxWidth="480">
+                    <ContentPresenter/>
+                </Border>
+            </Grid>
+        </ControlTemplate>
+
+        <!-- ── Input button style ────────────────────────────── -->
+        <Style x:Key="TgInputBtn" TargetType="Button">
+            <Setter Property="Width"  Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#7DA8CC"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="20" Width="40" Height="40"
+                                Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1A3A52"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#2B4A66"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Alias for compatibility ───────────────────────── -->
+        <Style x:Key="WhatsAppInputBtn" TargetType="Button" BasedOn="{StaticResource TgInputBtn}"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="64"/>     <!-- 0: TopBar -->
+            <RowDefinition Height="*"/>      <!-- 1: Messages -->
+            <RowDefinition Height="Auto"/>   <!-- 2: Typing indicator -->
+            <RowDefinition Height="Auto"/>   <!-- 3: Search bar (hidden by default) -->
+            <RowDefinition Height="68"/>     <!-- 4: Input bar -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════ ROW 0 — TOPBAR ═══════════════════ -->
+        <Border Grid.Row="0" Background="#0D1B2A" BorderBrush="#1E3A52" BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Avatar + name + status -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- Online dot -->
+                        <Ellipse x:Name="ChatOnlineDot" Width="10" Height="10"
+                                 Fill="#606080" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Mobile Device"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   Foreground="#E8F4FF" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ChatStatusLabel" Text="Offline"
+                               FontSize="12" Foreground="#606080" Margin="18,1,0,0"/>
+                </StackPanel>
+
+                <!-- Action buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ChatScreenshotBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Send Screenshot" Click="ChatScreenshot_Click"
+                            Content="🖥" Foreground="#7DA8CC"/>
+                    <Button x:Name="ChatStarredBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Starred Messages" Click="ChatStarred_Click"
+                            Content="⭐" Foreground="#7DA8CC"/>
+                    <Button x:Name="ChatHistoryBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Reload history from server" Click="ChatHistory_Click"
+                            Content="🔄" Foreground="#7DA8CC"/>
+
+                    <!-- Search toggle -->
+                    <Button Style="{StaticResource TgInputBtn}"
+                            ToolTip="Search messages" Content="🔍" Foreground="#7DA8CC"
+                            Click="ChatSearchToggle_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════ ROW 1 — MESSAGE LIST ════════════════ -->
+        <Grid Grid.Row="1">
+            <Grid.Background>
+                <SolidColorBrush Color="#0A1628"/>
+            </Grid.Background>
+            <Border Background="{StaticResource TelegramBg}"/>
+
+            <!-- Drag-drop overlay -->
+            <Border x:Name="DragDropOverlay" Visibility="Collapsed"
+                    Background="#CC0A1628" Panel.ZIndex="10">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="📎" FontSize="64" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Drop files to send"
+                               FontSize="20" FontWeight="Bold"
+                               Foreground="#4FC3F7" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                    <TextBlock Text="Any file type • Unlimited size on LAN"
+                               FontSize="12" Foreground="#4D7EA8"
+                               HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer x:Name="ChatScrollViewer"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="0,8"
+                          AllowDrop="True"
+                          DragEnter="Chat_DragEnter"
+                          DragLeave="Chat_DragLeave"
+                          Drop="Chat_Drop">
+                <ItemsControl x:Name="ChatMessagesList" Margin="0,4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:ChatMessage}">
+                            <Grid Margin="0,1">
+                                <ContentControl>
+                                    <ContentControl.Style>
+                                        <Style TargetType="ContentControl">
+                                            <Setter Property="Template" Value="{StaticResource ReceivedBubbleTemplate}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSentByMe}" Value="True">
+                                                    <Setter Property="Template" Value="{StaticResource SentBubbleTemplate}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ContentControl.Style>
+
+                                    <StackPanel>
+                                        <!-- Image preview -->
+                                        <Border CornerRadius="8" ClipToBounds="True" Margin="0,0,0,6"
+                                                Visibility="{Binding IsImageMessage, Converter={StaticResource BoolVis}}">
+                                            <Image Source="{Binding Thumbnail}" MaxHeight="320"
+                                                   Stretch="UniformToFill" Cursor="Hand"
+                                                   MouseLeftButtonDown="ChatImage_Click"/>
+                                        </Border>
+
+                                        <!-- Text content -->
+                                        <TextBlock Text="{Binding Content}"
+                                                   FontSize="14" Foreground="#D8EEFF"
+                                                   TextWrapping="Wrap" LineHeight="20"
+                                                   Visibility="{Binding IsFileMessage, Converter={StaticResource InvBoolToVis}}"/>
+
+                                        <!-- File card -->
+                                        <Grid Visibility="{Binding IsFileMessage, Converter={StaticResource BoolVis}}"
+                                              Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="44"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Icon circle -->
+                                            <Border Width="40" Height="40" CornerRadius="20"
+                                                    Background="#1E3A52" Margin="0,0,8,0">
+                                                <TextBlock Text="{Binding FileIcon}"
+                                                           FontSize="18"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+
+                                            <!-- Name + size -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}"
+                                                           FontSize="13" FontWeight="Medium"
+                                                           Foreground="#D8EEFF"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding FileSizeLabel}"
+                                                           FontSize="11" Foreground="#4D7EA8"/>
+                                            </StackPanel>
+
+                                            <!-- Open button -->
+                                            <Button Grid.Column="2"
+                                                    Style="{StaticResource TgInputBtn}"
+                                                    Content="⬇" FontSize="14"
+                                                    Tag="{Binding}"
+                                                    Click="ChatDownload_Click"
+                                                    Visibility="{Binding State, Converter={StaticResource IsComplete}}"/>
+                                        </Grid>
+
+                                        <!-- Transfer progress bar -->
+                                        <ProgressBar Value="{Binding TransferProgress, Mode=OneWay}"
+                                                     Maximum="1" Height="3" Margin="0,6,0,2"
+                                                     Foreground="#4FC3F7" Background="#1E3A52"
+                                                     BorderThickness="0"
+                                                     Visibility="{Binding State, Converter={StaticResource IsTransferring}}"/>
+
+                                        <!-- Reaction -->
+                                        <TextBlock Text="{Binding Reaction}"
+                                                   FontSize="20" HorizontalAlignment="Left"
+                                                   Margin="0,2,0,0"
+                                                   Visibility="{Binding Reaction, Converter={StaticResource NonZeroVisibility}}"/>
+
+                                        <!-- Footer: time + ticks -->
+                                        <StackPanel Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    Margin="0,4,0,0">
+                                            <TextBlock Text="{Binding TimeLabel}"
+                                                       FontSize="11" Foreground="#4D7EA8"/>
+                                            <TextBlock Text="{Binding DeliveryIcon}"
+                                                       FontSize="11" Margin="4,0,0,0"
+                                                       Visibility="{Binding IsSentByMe, Converter={StaticResource BoolVis}}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="#4D7EA8"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRead}" Value="True">
+                                                                <Setter Property="Foreground" Value="#4FC3F7"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ContentControl>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- ═══════════════ ROW 2 — TYPING INDICATOR ════════════ -->
+        <Border Grid.Row="2" x:Name="TypingIndicatorRow" Visibility="Collapsed"
+                Background="#0D1B2A" Padding="20,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="● ● ●" FontSize="11" Foreground="#4FC3F7"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text=" typing..." FontSize="11" Foreground="#4D7EA8"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- ═══════════════ ROW 3 — SEARCH BAR ═════════════════ -->
+        <Border Grid.Row="3" x:Name="SearchBarRow" Visibility="Collapsed"
+                Background="#0D1B2A" BorderBrush="#1E3A52" BorderThickness="0,1,0,1"
+                Padding="16,6">
+            <Border Background="#0A1628" CornerRadius="20"
+                    BorderBrush="#1E3A52" BorderThickness="1"
+                    Padding="12,0">
+                <Grid>
+                    <TextBlock Text="Search messages…" Foreground="#4D7EA8"
+                               FontSize="13" VerticalAlignment="Center"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=ChatSearchBox}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBox x:Name="ChatSearchBox" Background="Transparent"
+                             BorderThickness="0" Foreground="#A8D0F0"
+                             FontSize="13" VerticalAlignment="Center"
+                             TextChanged="ChatSearch_Changed"/>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- ═══════════════ ROW 4 — INPUT BAR ══════════════════ -->
+        <Border Grid.Row="4" Background="#0D1B2A" BorderBrush="#1E3A52" BorderThickness="0,1,0,0">
+            <Grid Margin="8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: attach buttons -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ChatAttachBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Attach file" Click="ChatAttach_Click"
+                            Content="📎"/>
+                    <Button x:Name="ChatVoiceBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Record voice" Click="ChatVoice_Click"
+                            Content="🎙"/>
+                    <Button x:Name="ChatClipBtn" Style="{StaticResource TgInputBtn}"
+                            ToolTip="Send clipboard" Click="ChatClipboard_Click"
+                            Content="📋"/>
+                </StackPanel>
+
+                <!-- Center: text input -->
+                <Border Grid.Column="1" Background="#0A1628" CornerRadius="22"
+                        BorderBrush="#1E3A52" BorderThickness="1"
+                        Margin="4,10">
+                    <Grid>
+                        <TextBlock Text="Write a message…" Foreground="#4D7EA8"
+                                   FontSize="14" VerticalAlignment="Center" Margin="16,0"
+                                   IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=ChatInputBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBox x:Name="ChatInputBox"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="#D8EEFF"
+                                 FontSize="14"
+                                 VerticalAlignment="Center"
+                                 Padding="16,0"
+                                 AcceptsReturn="False"
+                                 MaxLength="4096"
+                                 KeyDown="ChatInput_KeyDown"
+                                 TextChanged="ChatInput_TextChanged"/>
+                    </Grid>
+                </Border>
+
+                <!-- Right: send button -->
+                <Button Grid.Column="2" x:Name="ChatSendBtn"
+                        Width="46" Height="46"
+                        VerticalAlignment="Center"
+                        Margin="4,0,4,0"
+                        Cursor="Hand"
+                        Click="ChatSend_Click"
+                        ToolTip="Send (Enter)">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bg" CornerRadius="23" Width="46" Height="46"
+                                    Background="#2B82CC">
+                                <TextBlock Text="➤" FontSize="18" Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="2,0,0,0"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bg" Property="Background" Value="#3A9FE8"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bg" Property="Background" Value="#1A6AAA"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

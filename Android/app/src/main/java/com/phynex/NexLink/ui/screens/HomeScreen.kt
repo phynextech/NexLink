@@ -30,8 +30,11 @@ fun HomeScreen(
     onNavigateToAppLauncher: () -> Unit,
     onNavigateToClipboard: () -> Unit,
     onNavigateToCameraScreen: () -> Unit,
+    onNavigateToExtendScreen: () -> Unit,
     onNavigateToFileBrowser: () -> Unit,
-    onNavigateToTrackpad: () -> Unit
+    onNavigateToTrackpad: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToChat: () -> Unit
 ) {
     val isConnected by viewModel.isConnected.collectAsState()
     val deviceInfo by viewModel.connectedDevice.collectAsState()
@@ -89,23 +92,29 @@ fun HomeScreen(
                         Spacer(Modifier.width(8.dp))
                         Text("NexLink", style = MaterialTheme.typography.headlineLarge, color = primary, fontWeight = FontWeight.Black)
                     }
-                    var showSettingsDialog by remember { mutableStateOf(false) }
-
-                    Box(
-                        Modifier.size(40.dp)
-                            .clip(CircleShape)
-                            .border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
-                            .clickable { showSettingsDialog = true }
-                    ) {
-                        Icon(Icons.Default.Person, null, tint = primary, modifier = Modifier.align(Alignment.Center))
-                    }
-                    
-                    if (showSettingsDialog) {
-                        SettingsDialog(viewModel = viewModel, onDismiss = { showSettingsDialog = false })
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val connectionMode by viewModel.connectionMode.collectAsState()
+                        if (isConnected) {
+                            Text(
+                                text = connectionMode,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GreenLight,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                        Box(
+                            Modifier.size(40.dp)
+                                .clip(CircleShape)
+                                .border(1.dp, primary.copy(alpha = 0.3f), CircleShape)
+                                .clickable { onNavigateToSettings() }
+                        ) {
+                            Icon(Icons.Default.Person, null, tint = primary, modifier = Modifier.align(Alignment.Center))
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(1.dp))
 
                 // Device Info
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -121,7 +130,7 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // Connection Status Pill
                 val connectionStateText = when {
@@ -152,7 +161,7 @@ fun HomeScreen(
 
                 // Wallpaper Card
                 Box(
-                    Modifier.fillMaxWidth().height(200.dp)
+                    Modifier.fillMaxWidth().height(220.dp)
                         .clip(RoundedCornerShape(24.dp))
                         .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
                 ) {
@@ -193,7 +202,9 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     StatusItem(
-                        if (wifiInfo?.connected == true) Icons.Default.Wifi else Icons.Default.WifiOff,
+                        if (wifiInfo?.connected == true) {
+                            if (wifiInfo?.ssid?.contains("Ethernet") == true) Icons.Default.SettingsEthernet else Icons.Default.Wifi
+                        } else Icons.Default.WifiOff,
                         when {
                             wifiInfo?.connected == true -> wifiInfo?.ssid ?: "Wi-Fi"
                             wifiInfo != null -> "Off"
@@ -224,7 +235,7 @@ fun HomeScreen(
                         if (bluetoothEnabled) Icons.Default.Bluetooth else Icons.Default.BluetoothDisabled,
                         when {
                             !bluetoothEnabled -> "Off"
-                            bluetoothDevices.isEmpty() -> "On"
+                            bluetoothDevices.isEmpty() -> "Disconnected"
                             bluetoothDevices.size == 1 -> bluetoothDevices.first().name
                             else -> "${bluetoothDevices.size} devices"
                         },
@@ -272,15 +283,49 @@ fun HomeScreen(
                     Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    QuickAction(Icons.Default.Lock, "Lock") { viewModel.lockPC() }
+                    var showPowerMenu by remember { mutableStateOf(false) }
+                    QuickAction(Icons.Default.PowerSettingsNew, "Power") { showPowerMenu = true }
+                    if (showPowerMenu) {
+                        AlertDialog(
+                            onDismissRequest = { showPowerMenu = false },
+                            containerColor = Color(0xFF1A1A2E),
+                            title = { Text("Power Options", color = Color.White) },
+                            text = {
+                                Column {
+                                    val options = listOf("Sleep", "Hibernate", "Shutdown", "Restart", "Lock", "Signout")
+                                    options.forEach { opt ->
+                                        TextButton(onClick = {
+                                            viewModel.powerCommand(opt)
+                                            showPowerMenu = false
+                                        }) {
+                                            Text(opt, color = onBackground, modifier = Modifier.fillMaxWidth())
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showPowerMenu = false }) { Text("Cancel", color = primary) }
+                            }
+                        )
+                    }
+
                     QuickAction(Icons.Default.MusicNote, "Music", onNavigateToMusic)
+                    QuickAction(Icons.Default.DesktopMac, "Extend", onNavigateToExtendScreen)
                     QuickAction(Icons.Default.PhotoCamera, "Camera", onNavigateToCameraScreen)
-                    QuickAction(Icons.Default.ContentPaste, "Clip", onNavigateToClipboard)
                     QuickAction(Icons.Default.Mouse, "Mouse", onNavigateToTrackpad)
+                    QuickAction(Icons.Default.Chat, "Chat", onNavigateToChat)
                     QuickAction(Icons.Default.MoreHoriz, "More", onNavigateToAppLauncher)
                 }
 
-                Spacer(Modifier.height(48.dp))
+                Spacer(Modifier.height(32.dp))
+                Text(
+                    "Powered by Phynex",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = outline.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Spacer(Modifier.height(24.dp))
             }
 
             // ── Phone OSD overlay (bottom center) ───────────────────────
@@ -347,7 +392,27 @@ fun VolumeBrightnessControl(
                 Spacer(Modifier.width(12.dp))
                 Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
             }
-            Text("${draftValue.toInt()}", style = MaterialTheme.typography.titleLarge, color = primary, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { onValueChange((value - 2).coerceIn(0, 100)) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Remove, null, tint = primary, modifier = Modifier.size(20.dp))
+                }
+                Text(
+                    "${draftValue.toInt()}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+                IconButton(
+                    onClick = { onValueChange((value + 2).coerceIn(0, 100)) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, null, tint = primary, modifier = Modifier.size(20.dp))
+                }
+            }
         }
         Spacer(Modifier.height(16.dp))
         Slider(
@@ -415,57 +480,3 @@ fun BottomNavItem(
     }
 }
 
-@Composable
-fun SettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
-    val themeMode by viewModel.themeMode.collectAsState()
-    val primaryColor by viewModel.primaryColor.collectAsState()
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("Settings", color = MaterialTheme.colorScheme.onSurface) },
-        text = {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Text("Theme", style = MaterialTheme.typography.titleMedium, color = primary)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    listOf("System", "Light", "Dark").forEach { mode ->
-                        Button(
-                            onClick = { viewModel.setThemeMode(mode) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (themeMode == mode) primary else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (themeMode == mode) onPrimary else MaterialTheme.colorScheme.onSurface
-                            ),
-                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-                        ) {
-                            Text(mode, maxLines = 1)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text("Accent Color", style = MaterialTheme.typography.titleMedium, color = primary)
-                Spacer(Modifier.height(8.dp))
-                val colors = listOf("Monochrome", "Green", "Pink", "Lavender", "Orange", "Blue", "Red")
-                colors.chunked(3).forEach { rowColors ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        rowColors.forEach { color ->
-                            Button(
-                                onClick = { viewModel.setPrimaryColor(color) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (primaryColor == color) primary else MaterialTheme.colorScheme.surfaceVariant,
-                                    contentColor = if (primaryColor == color) onPrimary else MaterialTheme.colorScheme.onSurface
-                                ),
-                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-                            ) {
-                                Text(color, maxLines = 1)
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close", color = primary) }
-        }
-    )
-}

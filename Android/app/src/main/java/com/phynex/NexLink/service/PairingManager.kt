@@ -30,7 +30,7 @@ class PairingManager(context: Context) {
         private const val KEY_TOKEN     = "saved_id_token"
         private const val KEY_DEV_NAME  = "saved_device_name"
 
-        const val DEFAULT_RELAY_URL = "https://nexlink-khhe.onrender.com"
+        const val DEFAULT_RELAY_URL = "https://nexlink-1.onrender.com"
     }
 
     fun savePairing(

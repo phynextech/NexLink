@@ -58,44 +58,36 @@ namespace NexLink.Services
         // Hidden WinForms window that monitors clipboard changes
         private class ClipboardForm : Form
         {
-            private IntPtr _nextViewer;
             public event Action<string>? ClipboardChanged;
 
-            [DllImport("User32.dll")]
-            static extern IntPtr SetClipboardViewer(IntPtr hWndNewViewer);
-            [DllImport("User32.dll")]
-            static extern bool ChangeClipboardChain(IntPtr hWndRemove, IntPtr hWndNewNext);
-            [DllImport("user32.dll")]
-            static extern IntPtr SendMessage(IntPtr hwnd, int wMsg, IntPtr wParam, IntPtr lParam);
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+            [DllImport("user32.dll", SetLastError = true)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
             public ClipboardForm()
             {
                 WindowState = FormWindowState.Minimized;
                 ShowInTaskbar = false;
                 Opacity = 0;
-                Load += (s, e) => _nextViewer = SetClipboardViewer(Handle);
+                Load += (s, e) => AddClipboardFormatListener(Handle);
             }
 
             protected override void WndProc(ref Message m)
             {
-                const int WM_DRAWCLIPBOARD = 0x0308;
-                const int WM_CHANGECBCHAIN = 0x030D;
+                const int WM_CLIPBOARDUPDATE = 0x031D;
                 switch (m.Msg)
                 {
-                    case WM_DRAWCLIPBOARD:
+                    case WM_CLIPBOARDUPDATE:
                         try
                         {
                             if (System.Windows.Forms.Clipboard.ContainsText())
                                 ClipboardChanged?.Invoke(System.Windows.Forms.Clipboard.GetText());
                         }
                         catch { }
-                        SendMessage(_nextViewer, m.Msg, m.WParam, m.LParam);
-                        break;
-                    case WM_CHANGECBCHAIN:
-                        if (m.WParam == _nextViewer)
-                            _nextViewer = m.LParam;
-                        else
-                            SendMessage(_nextViewer, m.Msg, m.WParam, m.LParam);
                         break;
                     default:
                         base.WndProc(ref m);
@@ -105,7 +97,7 @@ namespace NexLink.Services
 
             protected override void OnFormClosing(FormClosingEventArgs e)
             {
-                ChangeClipboardChain(Handle, _nextViewer);
+                RemoveClipboardFormatListener(Handle);
                 base.OnFormClosing(e);
             }
         }

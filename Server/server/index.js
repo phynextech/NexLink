@@ -36,8 +36,8 @@ initSocketIO(server);
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   logger.info(`🚀 NexLink Relay Server running on port ${PORT}`);
-  logger.info(`   Socket.IO:  wss://nexlink-khhe.onrender.com`);
-  logger.info(`   Health:     https://nexlink-khhe.onrender.com/health`);
+  logger.info(`   Socket.IO:  wss://nexlink-1.onrender.com`);
+  logger.info(`   Health:     https://nexlink-1.onrender.com/health`);
 });
 
 // ── Keep-alive: prevent Render free tier from spinning down ──────────────────

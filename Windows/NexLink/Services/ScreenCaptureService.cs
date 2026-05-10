@@ -21,10 +21,23 @@ namespace NexLink.Services
         [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr hObject);
         [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr hDC);
         [DllImport("user32.dll")] static extern bool ReleaseDC(IntPtr hWnd, IntPtr hDC);
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+        [DllImport("user32.dll")] static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, int nFlags);
 
         const uint SRCCOPY = 0xCC0020;
 
-        public void StartStreaming(Action<string> onFrame, int intervalMs = 500)
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+        }
+
+        public void StartStreaming(Action<string> onFrame, int intervalMs = 500, MediaControlService.RECT? bounds = null)
         {
             if (_cts != null && !_cts.IsCancellationRequested) return; // Already streaming
             
@@ -36,7 +49,7 @@ namespace NexLink.Services
                 {
                     try
                     {
-                        var b64 = CaptureScreen();
+                        var b64 = CaptureScreen(bounds);
                         onFrame(b64);
                     }
                     catch { }
@@ -52,16 +65,76 @@ namespace NexLink.Services
             _cts = null; // Reset so StartStreaming can be called again
         }
 
-        public string CaptureScreen()
+        public string CaptureScreen(MediaControlService.RECT? bounds = null, bool highQuality = false)
         {
             var screen = System.Windows.Forms.Screen.PrimaryScreen!;
-            int w = screen.Bounds.Width, h = screen.Bounds.Height;
-            var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            int x = 0, y = 0, w = screen.Bounds.Width, h = screen.Bounds.Height;
 
-            using var g = Graphics.FromImage(bmp);
-            g.CopyFromScreen(0, 0, 0, 0, bmp.Size);
+            if (bounds != null)
+            {
+                x = Math.Max(0, bounds.Value.Left);
+                y = Math.Max(0, bounds.Value.Top);
+                w = Math.Min(screen.Bounds.Width - x, bounds.Value.Width);
+                h = Math.Min(screen.Bounds.Height - y, bounds.Value.Height);
+            }
 
-            // Scale down to reduce bandwidth (720p max)
+            if (w <= 0 || h <= 0) return "";
+
+            using var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.CopyFromScreen(x, y, 0, 0, bmp.Size);
+            }
+
+            // Quality settings
+            int targetW = highQuality ? 1280 : 960;
+            int targetH = highQuality ? 720 : 540;
+            long quality = highQuality ? 90L : 45L;
+
+            using var scaled = ScaleBitmap(bmp, targetW, targetH);
+            using var ms = new MemoryStream();
+            var encoder = GetJpegEncoder();
+            var encoderParams = new EncoderParameters(1);
+            encoderParams.Param[0] = new EncoderParameter(Encoder.Quality, quality);
+            scaled.Save(ms, encoder, encoderParams);
+            return Convert.ToBase64String(ms.ToArray());
+        }
+
+        public void StartStreamingWindow(IntPtr hWnd, Action<string> onFrame, int intervalMs = 500)
+        {
+            if (_cts != null && !_cts.IsCancellationRequested) return; // Already streaming
+            
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+            Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var b64 = CaptureWindow(hWnd);
+                        if (!string.IsNullOrEmpty(b64))
+                            onFrame(b64);
+                    }
+                    catch { }
+                    await Task.Delay(intervalMs, token);
+                }
+            }, token);
+        }
+
+        public string CaptureWindow(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero || !GetWindowRect(hWnd, out var rect) || rect.Width <= 0 || rect.Height <= 0)
+                return "";
+
+            var bmp = new Bitmap(rect.Width, rect.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                var hdc = g.GetHdc();
+                PrintWindow(hWnd, hdc, 2); // 2 = PW_RENDERFULLCONTENT
+                g.ReleaseHdc(hdc);
+            }
+
             var scaled = ScaleBitmap(bmp, 1280, 720);
             using var ms = new MemoryStream();
             var encoder = GetJpegEncoder();

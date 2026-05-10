@@ -48,6 +48,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -94,6 +95,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
+
+    // WebRTC (Using Stream fork as Google's JCenter repo is dead)
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -5,7 +5,7 @@ data class DeviceInfo(
     val deviceId: String,
     val deviceName: String,
     val pairId: String,
-    val relayUrl: String = "https://nexlink-khhe.onrender.com"
+    val relayUrl: String = "https://nexlink-1.onrender.com"
 )
 
 data class WifiInfo(
@@ -140,5 +140,8 @@ enum class Screen(val route: String) {
     FILE_BROWSER("file_browser"),
     CLIPBOARD("clipboard"),
     CAMERA_SCREEN("camera_screen"),
-    TRACKPAD("trackpad")
+    TRACKPAD("trackpad"),
+    SETTINGS("settings"),
+    EXTEND_SCREEN("extend_screen"),
+    CHAT("chat"),
 }

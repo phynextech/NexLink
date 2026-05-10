@@ -11,6 +11,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONObject
 import java.net.URI
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import java.util.concurrent.TimeUnit
+import com.phynex.NexLink.service.LanDiscoveryClient
 
 /**
  * NexLink Socket.IO client — cloud-only architecture.
@@ -30,7 +37,7 @@ class NexLinkSocketClient {
     private val gson = Gson()
 
     private var socket: Socket? = null
-    private var relayUrl: String = "https://nexlink-khhe.onrender.com"
+    private var relayUrl: String = "https://nexlink-1.onrender.com"
     private var userId: String = ""
     private var deviceId: String = ""
     private var firebaseToken: String = ""
@@ -42,6 +49,13 @@ class NexLinkSocketClient {
     @Volatile private var isConnecting = false
     @Volatile private var connectRetryCount = 0
     private val MAX_BACKOFF_MS = 60_000L
+
+    // ── LAN Support ──
+    private var lanWebSocket: WebSocket? = null
+    private val okHttpClient = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+    @Volatile private var isLanConnected = false
 
     // ── Public state flows ─────────────────────────────────────────────────
     private val _isConnected = MutableStateFlow(false)
@@ -64,7 +78,7 @@ class NexLinkSocketClient {
 
     /** Connect (or reconnect) to the relay server. Token refreshes are handled externally. */
     fun connect(
-        relay: String = "https://nexlink-khhe.onrender.com",
+        relay: String = "https://nexlink-1.onrender.com",
         uid: String,
         did: String,
         token: String,
@@ -86,6 +100,11 @@ class NexLinkSocketClient {
         socket = null
         s?.off()
         s?.disconnect()
+        lanWebSocket?.close(1000, "Disconnect")
+        lanWebSocket = null
+        isLanConnected = false
+        LanDiscoveryClient.stopListening()
+        
         _isConnected.value    = false
         _isPeerOnline.value   = false
         _connectionMode.value = "Disconnected"
@@ -95,14 +114,27 @@ class NexLinkSocketClient {
         val event = data["type"] as? String ?: return
         val json  = JSONObject(data.filter { it.key != "type" })
         try {
-            socket?.emit(event, json) ?: Log.w(TAG, "Socket not connected — drop: $event")
+            if (isLanConnected) {
+                // For raw WebSocket, we need to inject type back in since it's just JSON strings
+                json.put("type", event)
+                lanWebSocket?.send(json.toString())
+            } else {
+                socket?.emit(event, json) ?: Log.w(TAG, "Socket not connected — drop: $event")
+            }
         } catch (e: Exception) {
             Log.e(TAG, "sendMessage failed: ${e.message}")
         }
     }
 
     fun sendRaw(event: String, json: JSONObject) {
-        try { socket?.emit(event, json) } catch (_: Exception) {}
+        try { 
+            if (isLanConnected) {
+                if (!json.has("type")) json.put("type", event)
+                lanWebSocket?.send(json.toString())
+            } else {
+                socket?.emit(event, json) 
+            }
+        } catch (_: Exception) {}
     }
 
     fun reconnect() {
@@ -171,9 +203,11 @@ class NexLinkSocketClient {
             sock.on(Socket.EVENT_DISCONNECT) { args ->
                 val reason = args?.firstOrNull()?.toString() ?: "unknown"
                 Log.w(TAG, "Disconnected: $reason")
-                _isConnected.value    = false
-                _isPeerOnline.value   = false
-                _connectionMode.value = "Reconnecting…"
+                if (!isLanConnected) {
+                    _isConnected.value    = false
+                    _isPeerOnline.value   = false
+                    _connectionMode.value = "Reconnecting…"
+                }
                 // Socket.IO handles auto-reconnect via setReconnection(true)
             }
 
@@ -252,6 +286,13 @@ class NexLinkSocketClient {
             }
 
             sock.connect()
+            
+            // Start LAN Discovery
+            scope.launch {
+                LanDiscoveryClient.startListening(deviceId) { ip, port ->
+                    if (!isLanConnected) connectToLan(ip, port)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "buildAndConnect failed: ${e.message}")
             isConnecting = false
@@ -274,16 +315,73 @@ class NexLinkSocketClient {
             val element = JsonParser.parseString(text)
             when {
                 element.isJsonObject -> element.asJsonObject
-                // If server wraps in array [{ ... }], take first element
                 element.isJsonArray  -> {
                     val arr = element.asJsonArray
-                    if (arr.size() > 0 && arr[0].isJsonObject) arr[0].asJsonObject
-                    else JsonObject()
+                    if (arr.size() > 0 && arr[0].isJsonObject) arr[0].asJsonObject else JsonObject()
                 }
                 else -> JsonObject()
             }
         } catch (_: Exception) {
             JsonObject()
+        }
+    }
+
+    private fun connectToLan(ip: String, port: Int) {
+        if (isLanConnected) return
+        val url = "ws://$ip:$port"
+        Log.d(TAG, "Connecting to LAN raw WebSocket: $url")
+        val request = Request.Builder().url(url).build()
+        lanWebSocket?.close(1000, null)
+        lanWebSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d(TAG, "LAN WebSocket connected")
+                isLanConnected = true
+                _isConnected.value = true
+                _isPeerOnline.value = true
+                _connectionMode.value = "Direct LAN"
+                
+                // Disconnect Cloud socket since we are on LAN
+                socket?.io()?.reconnection(false)
+                socket?.disconnect()
+                
+                // Request info
+                scope.launch {
+                    delay(300)
+                    sendRaw("request_info", JSONObject())
+                    delay(500)
+                    sendRaw("get_wallpaper", JSONObject())
+                }
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val jsonObj = parseJsonObject(text)
+                val type = jsonObj.get("type")?.asString ?: "message"
+                _lastMessage.value = jsonObj
+                try {
+                    listeners[type]?.invoke(jsonObj)
+                } catch (e: Exception) {
+                    Log.e(TAG, "LAN Listener crash for $type: ${e.message}")
+                }
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                handleLanDisconnect()
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e(TAG, "LAN WebSocket failure: ${t.message}")
+                handleLanDisconnect()
+            }
+        })
+    }
+
+    private fun handleLanDisconnect() {
+        if (!isLanConnected) return
+        Log.d(TAG, "LAN WebSocket disconnected, falling back to Cloud Relay")
+        isLanConnected = false
+        lanWebSocket = null
+        if (!isManualDisconnect) {
+            buildAndConnect() // Fallback to Cloud
         }
     }
 
@@ -306,6 +404,16 @@ class NexLinkSocketClient {
             "media_control", "media_seek",
             "request_info", "get_wallpaper",
             "error", "pong",
+            // ── Chat & File Transfer ─────────────────────────────────
+            "chat_message",
+            "chat_file_offer", "chat_file_accept", "chat_file_reject",
+            "chat_file_chunk", "chat_file_ack", "chat_file_done",
+            "chat_file_pause", "chat_file_resume", "chat_file_cancel",
+            "chat_typing", "chat_delivered", "chat_read",
+            "chat_reaction", "chat_history", "chat_history_req",
+            "chat_voice_message", "chat_clipboard", "chat_screenshot",
+            "chat_star",
         )
+
     }
 }

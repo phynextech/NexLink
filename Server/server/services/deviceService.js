@@ -23,7 +23,7 @@ const createDevicePair = async (userId, deviceId, deviceName) => {
   }
 
   logger.info(`🔑 Pair created: pairId=${pairId} user=${userId} device=${deviceId}`);
-  return { pairId, relayUrl: 'https://nexlink-khhe.onrender.com' };
+  return { pairId, relayUrl: 'https://nexlink-1.onrender.com' };
 };
 
 const verifyDevicePair = async (pairId) => {

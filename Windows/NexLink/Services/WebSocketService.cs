@@ -28,7 +28,7 @@ namespace NexLink.Services
     public class WebSocketService
     {
         // ─── Relay Server URL ─────────────────────────────────────────────
-        public const string RelayServerUrl = "https://nexlink-khhe.onrender.com";
+        public const string RelayServerUrl = "https://nexlink-1.onrender.com";
 
         private SocketIOClient.SocketIO? _socket;
         private string _userId   = "";
@@ -189,7 +189,16 @@ namespace NexLink.Services
                 "webrtc_offer", "webrtc_answer", "webrtc_ice",
                 "mouse_move", "mouse_tap", "mouse_right_tap", "mouse_scroll",
                 "usb_connected", "usb_disconnected",
-                "mobile_wallpaper", "battery_info", "wifi_info", "bt_info"
+                "mobile_wallpaper", "battery_info", "wifi_info", "bt_info",
+                // ── Chat & File Transfer ──────────────────────────────────
+                "chat_message",
+                "chat_file_offer", "chat_file_accept", "chat_file_reject",
+                "chat_file_chunk", "chat_file_ack", "chat_file_done",
+                "chat_file_pause", "chat_file_resume", "chat_file_cancel",
+                "chat_typing", "chat_delivered", "chat_read",
+                "chat_reaction", "chat_history", "chat_history_req",
+                "chat_voice_message", "chat_clipboard", "chat_screenshot",
+                "chat_star",
             };
 
             foreach (var ev in events)
@@ -271,8 +280,6 @@ namespace NexLink.Services
                                 using var doc = JsonDocument.Parse(cleanJson);
                                 await _socket.EmitAsync(eventType, doc.RootElement);
                             }
-
-                            await Task.Delay(15, token);
                         }
                         catch (OperationCanceledException) { break; }
                         catch (Exception ex)
@@ -282,6 +289,7 @@ namespace NexLink.Services
                     }
                     else
                     {
+                        // No messages, wait slightly longer to save CPU
                         await Task.Delay(10, token);
                     }
                 }

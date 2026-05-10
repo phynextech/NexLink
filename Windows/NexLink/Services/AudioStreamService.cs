@@ -1,23 +1,32 @@
-﻿using System;
+using System;
 using NAudio.Wave;
 
 namespace NexLink.Services
 {
     public class AudioStreamService
     {
-        private WaveInEvent? _waveIn;
+        private IWaveIn? _waveIn;
 
-        public void StartStreaming(Action<string> onAudioChunk)
+        public void StartStreaming(Action<string> onAudioChunk, bool captureSystemAudio = false)
         {
             try
             {
                 if (_waveIn != null) return;
                 
-                _waveIn = new WaveInEvent
+                if (captureSystemAudio)
                 {
-                    DeviceNumber = 0,
-                    WaveFormat = new WaveFormat(16000, 1) // 16kHz, mono, 16-bit
-                };
+                    _waveIn = new WasapiLoopbackCapture();
+                    // WasapiLoopbackCapture format is usually IEEE Float, which might need conversion for Android depending on how it's handled,
+                    // but we will send it raw as base64. It's usually 44.1kHz or 48kHz, stereo, 32-bit float.
+                }
+                else
+                {
+                    _waveIn = new WaveInEvent
+                    {
+                        DeviceNumber = 0,
+                        WaveFormat = new WaveFormat(16000, 1) // 16kHz, mono, 16-bit
+                    };
+                }
                 
                 _waveIn.DataAvailable += (s, a) =>
                 {

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">NexLink</string>
+    <string name="accessibility_service_description">NexLink requires Accessibility permissions to synchronize clipboard content with your PC in the background.</string>
 </resources>

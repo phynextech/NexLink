@@ -23,12 +23,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import com.phynex.NexLink.ui.theme.*
 import com.phynex.NexLink.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
     val nowPlaying by viewModel.nowPlaying.collectAsState()
     val volume by viewModel.volume.collectAsState()
     val deviceInfo by viewModel.connectedDevice.collectAsState()
+
+    val isStreamingScreen by viewModel.isStreamingScreen.collectAsState()
+    val screenFrameB64 by viewModel.screenFrameBase64.collectAsState()
 
     // Decode album art bitmap
     val albumBitmap = remember(nowPlaying?.albumArtBase64) {
@@ -38,6 +42,17 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }.getOrNull()
         }
+    }
+
+    val streamBitmap = remember(screenFrameB64) {
+        if (isStreamingScreen) {
+            screenFrameB64?.let { b64 ->
+                runCatching {
+                    val bytes = Base64.decode(b64, Base64.DEFAULT)
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                }.getOrNull()
+            }
+        } else null
     }
 
     // Local like state
@@ -106,24 +121,31 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
 
             Spacer(Modifier.height(32.dp))
 
-            // ── Album Art ────────────────────────────────────────────────
+            // ── Album Art or Live Stream (Rectangle) ─────────────────────────────────
             Box(
                 Modifier
-                    .size(300.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .aspectRatio(16f / 9f) // Rectangular ratio as requested
                     .shadow(
                         elevation = 32.dp,
                         shape = RoundedCornerShape(24.dp),
                         ambientColor = primary.copy(0.5f),
                         spotColor = primary.copy(0.5f)
                     )
-                    .background(Color(0xFF1A1A2E), RoundedCornerShape(24.dp)),
+                    .background(Color(0xFF1A1A2E), RoundedCornerShape(24.dp))
+                    .clickable {
+                        if (isStreamingScreen) viewModel.stopScreenStream()
+                        else viewModel.startBoundedScreenStream()
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                if (albumBitmap != null) {
+                val currentBmp = streamBitmap ?: albumBitmap
+                if (currentBmp != null) {
                     Image(
-                        albumBitmap.asImageBitmap(), "Album Art",
+                        currentBmp.asImageBitmap(), "Album Art / Stream",
                         Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)),
-                        contentScale = ContentScale.Crop
+                        contentScale = if (streamBitmap != null) ContentScale.Crop else ContentScale.Fit
                     )
                 } else {
                     Box(
@@ -135,6 +157,19 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Default.MusicNote, null, tint = Color.White.copy(0.3f), modifier = Modifier.size(100.dp))
+                    }
+                }
+
+                // LIVE Indicator
+                if (isStreamingScreen) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(12.dp)
+                            .background(Color.Black.copy(0.6f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("● LIVE", color = Color(0xFF00C853), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -184,26 +219,36 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 val duration = nowPlaying?.duration ?: 0.0
                 val isPlaying = nowPlaying?.isPlaying == true
 
-                var currentPosition by remember(basePosition, isPlaying) { mutableStateOf(basePosition) }
-                val lastUpdateMillis = remember(basePosition, isPlaying) { System.currentTimeMillis() }
+                var currentPosition by remember { mutableDoubleStateOf(basePosition) }
+                var lastSyncTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
                 
+                // Update local position when PC syncs
+                LaunchedEffect(basePosition) {
+                    currentPosition = basePosition
+                    lastSyncTime = System.currentTimeMillis()
+                }
+
                 var isDragging by remember { mutableStateOf(false) }
 
-                LaunchedEffect(basePosition, isPlaying, isDragging) {
+                LaunchedEffect(isPlaying, isDragging) {
                     if (isPlaying && !isDragging) {
                         while (true) {
-                            kotlinx.coroutines.delay(16)
-                            val elapsed = (System.currentTimeMillis() - lastUpdateMillis) / 1000.0
+                            delay(50) // Update every 50ms for smooth sync
+                            val elapsed = (System.currentTimeMillis() - lastSyncTime) / 1000.0
                             currentPosition = (basePosition + elapsed).coerceAtMost(duration)
                         }
                     }
                 }
 
                 val progress = if (duration > 0) (currentPosition / duration).toFloat().coerceIn(0f, 1f) else 0f
-                var sliderValue by remember(progress) { mutableStateOf(progress) }
+                var sliderValue by remember { mutableFloatStateOf(progress) }
+                
+                if (!isDragging) {
+                    sliderValue = progress
+                }
 
                 Slider(
-                    value = if (isDragging) sliderValue else progress,
+                    value = sliderValue,
                     onValueChange = { 
                         isDragging = true
                         sliderValue = it 
@@ -228,7 +273,7 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                     return String.format("%d:%02d", m, s)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(formatTime(if (isDragging) sliderValue * duration else currentPosition), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
+                    Text(formatTime(currentPosition), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
                     Text(formatTime(duration),  style = MaterialTheme.typography.labelSmall, color = Color.White.copy(0.5f))
                 }
             }
@@ -291,8 +336,7 @@ fun MusicControlScreen(viewModel: MainViewModel, onBack: () -> Unit) {
                 }
             }
 
-            // Volume removed to make layout full screen
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(48.dp))
         }
     }
 }
