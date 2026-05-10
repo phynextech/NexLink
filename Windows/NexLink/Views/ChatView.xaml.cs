@@ -240,38 +240,55 @@ namespace NexLink.Views
         private void HandleHistory(JObject data)
         {
             var msgs = data["messages"] as JArray;
-            if (msgs == null) return;
+            if (msgs == null || msgs.Count == 0) return; // Never wipe local cache on empty server response
 
-            Messages.Clear();
-            AllMessages.Clear();
-
-            foreach (var m in msgs.OrderBy(x => x["timestamp"]?.ToObject<long>() ?? 0))
+            Dispatcher.InvokeAsync(() =>
             {
-                var chatMsg = new ChatMessage
+                // Build a lookup of what's already shown locally
+                var existing = AllMessages.ToDictionary(m => m.MessageId, m => m);
+
+                foreach (var m in msgs.OrderBy(x => x["timestamp"]?.ToObject<long>() ?? 0))
                 {
-                    MessageId     = m["messageId"]?.ToString() ?? Guid.NewGuid().ToString(),
-                    SenderId      = m["senderId"]?.ToString() ?? "",
-                    IsSentByMe    = m["senderId"]?.ToString() == "desktop",
-                    MessageType   = Enum.TryParse<ChatMessageType>(m["type"]?.ToString(), true, out var t) ? t : ChatMessageType.Text,
-                    Content       = m["content"]?.ToString() ?? "",
-                    FileName      = m["fileName"]?.ToString(),
-                    MimeType      = m["fileMime"]?.ToString() ?? "",
-                    FileSizeBytes = m["fileSizeBytes"]?.ToObject<long>() ?? 0,
-                    FileId        = m["fileId"]?.ToString(),
-                    IsDelivered   = m["isDelivered"]?.ToObject<bool>() ?? false,
-                    IsRead        = m["isRead"]?.ToObject<bool>() ?? false,
-                    IsStarred     = m["isStarred"]?.ToObject<bool>() ?? false,
-                    Reaction      = m["reaction"]?.ToString(),
-                    State         = TransferState.Complete,
-                    Timestamp     = DateTimeOffset.FromUnixTimeMilliseconds(
-                                      m["timestamp"]?.ToObject<long>() ?? 0).LocalDateTime,
-                };
-                Messages.Add(chatMsg);
-                AllMessages.Add(chatMsg);
-            }
-            ScrollToBottom();
-            // Overwrite local cache with authoritative server history
-            SaveLocalCache();
+                    var msgId = m["messageId"]?.ToString() ?? Guid.NewGuid().ToString();
+
+                    if (existing.TryGetValue(msgId, out var local))
+                    {
+                        // Merge delivery/read state only — keep local TransferState and file paths
+                        local.IsDelivered = m["isDelivered"]?.ToObject<bool>() ?? local.IsDelivered;
+                        local.IsRead      = m["isRead"]?.ToObject<bool>()      ?? local.IsRead;
+                        local.IsStarred   = m["isStarred"]?.ToObject<bool>()   ?? local.IsStarred;
+                        if (m["reaction"]?.ToString() is string r && !string.IsNullOrEmpty(r))
+                            local.Reaction = r;
+                    }
+                    else
+                    {
+                        // New message from server not in local list — add it
+                        var chatMsg = new ChatMessage
+                        {
+                            MessageId     = msgId,
+                            SenderId      = m["senderId"]?.ToString() ?? "",
+                            IsSentByMe    = m["senderId"]?.ToString() == "desktop",
+                            MessageType   = Enum.TryParse<ChatMessageType>(m["type"]?.ToString(), true, out var t) ? t : ChatMessageType.Text,
+                            Content       = m["content"]?.ToString() ?? "",
+                            FileName      = m["fileName"]?.ToString(),
+                            MimeType      = m["fileMime"]?.ToString() ?? "",
+                            FileSizeBytes = m["fileSizeBytes"]?.ToObject<long>() ?? 0,
+                            FileId        = m["fileId"]?.ToString(),
+                            IsDelivered   = m["isDelivered"]?.ToObject<bool>() ?? false,
+                            IsRead        = m["isRead"]?.ToObject<bool>()      ?? false,
+                            IsStarred     = m["isStarred"]?.ToObject<bool>()   ?? false,
+                            Reaction      = m["reaction"]?.ToString(),
+                            State         = TransferState.Complete,
+                            Timestamp     = DateTimeOffset.FromUnixTimeMilliseconds(
+                                              m["timestamp"]?.ToObject<long>() ?? 0).LocalDateTime,
+                        };
+                        AddMessage(chatMsg, persist: false); // don't re-persist during merge
+                    }
+                }
+
+                SaveLocalCache(); // Save merged result once
+                ScrollToBottom();
+            });
         }
 
         private void HandleClipboardMsg(JObject data)

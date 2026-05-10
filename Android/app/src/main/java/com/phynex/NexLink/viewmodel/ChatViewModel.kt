@@ -195,20 +195,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         )
         receiveBuffers[fileId] = session
 
-        val msg = ChatMessage(
-            messageId     = msgId,
-            senderId      = "desktop",
-            isSentByMe    = false,
-            messageType   = ChatMessage.mimeToType(mime),
-            fileName      = name,
-            mimeType      = mime,
-            fileSizeBytes = size,
-            totalChunks   = totalChunks,
-            fileId        = fileId,
-            timestamp     = System.currentTimeMillis(),
-            transferState = TransferState.OFFERED,
-        )
-        addMessage(msg)
+        // Check if chat_message already added a bubble for this file (same messageId)
+        val alreadyHasBubble = _messages.value.any { it.messageId == msgId }
+        if (!alreadyHasBubble) {
+            val msg = ChatMessage(
+                messageId     = msgId,
+                senderId      = "desktop",
+                isSentByMe    = false,
+                messageType   = ChatMessage.mimeToType(mime),
+                fileName      = name,
+                mimeType      = mime,
+                fileSizeBytes = size,
+                totalChunks   = totalChunks,
+                fileId        = fileId,
+                timestamp     = System.currentTimeMillis(),
+                transferState = TransferState.OFFERED,
+            )
+            addMessage(msg)
+        } else {
+            // Bubble already exists — just update its state to TRANSFERRING
+            updateMessageState(fileId, TransferState.TRANSFERRING)
+        }
 
         emit("chat_file_accept", mapOf("fileId" to fileId))
         updateMessageState(fileId, TransferState.TRANSFERRING)
